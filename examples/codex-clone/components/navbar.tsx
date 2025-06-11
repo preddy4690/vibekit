@@ -4,7 +4,7 @@ export default function Navbar() {
   return (
     <div className="flex justify-between items-center">
       <Link href="/" passHref>
-        <h1 className="text-lg font-bold">CloneDex</h1>
+        <h1 className="text-lg font-bold">CodeFabric</h1>
       </Link>
       <div className="flex items-center gap-0">
         <Link

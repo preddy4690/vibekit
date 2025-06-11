@@ -22,6 +22,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { sanitizeMarkdownContent } from "@/lib/content-sanitizer";
 
 type CodeComponentProps = React.ComponentPropsWithoutRef<"code"> & {
   inline?: boolean;
@@ -290,16 +291,21 @@ const components: Partial<Components> = {
 const remarkPlugins = [remarkGfm];
 const rehypePlugins = [rehypeRaw];
 
+
+
 // Function to process citations and convert them to proper format
 const processCitations = (
   content: string,
   repoUrl?: string,
   branch?: string
 ): string => {
+  // First sanitize the content using the centralized sanitizer
+  const sanitizedContent = sanitizeMarkdownContent(content);
+
   // Match citations in format 【F:filename†L1-L1】
   const citationRegex = /【F:([^†]+)†L(\d+)-L(\d+)】/g;
 
-  return content.replace(
+  return sanitizedContent.replace(
     citationRegex,
     (match, filename, startLine, endLine) => {
       const displayText =

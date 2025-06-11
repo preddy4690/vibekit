@@ -1,4 +1,4 @@
-import { Sandbox as E2BSandbox } from "@e2b/code-interpreter";
+import { Sandbox as E2BSandbox } from "e2b";
 import { Daytona, DaytonaConfig } from "@daytonaio/sdk";
 
 import {

@@ -1,15 +1,18 @@
 "use client";
-import { useInngestSubscription } from "@inngest/realtime/hooks";
 import { useEffect, useRef } from "react";
 
 import TaskNavbar from "./_components/navbar";
 import MessageInput from "./_components/message-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { fetchRealtimeSubscriptionToken } from "@/app/actions/inngest";
-import { useTaskStore } from "@/stores/tasks";
-import { Terminal } from "lucide-react";
+import { useTemporalSubscription } from "@/hooks/useTemporalSubscription";
+import { getTemporalSubscriptionToken } from "@/app/actions/temporal";
+import { useHydratedTaskStore } from "@/hooks/useHydratedTaskStore";
+import { useWorkflowSync } from "@/hooks/useWorkflowSync";
+import { Terminal, RefreshCw } from "lucide-react";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { Markdown } from "@/components/markdown";
+import { MarkdownErrorBoundary } from "@/components/markdown-error-boundary";
+import { sanitizeMarkdownContent, hasProblematicTags, extractProblematicTags } from "@/lib/content-sanitizer";
 import {
   Tooltip,
   TooltipContent,
@@ -22,28 +25,26 @@ interface Props {
 }
 
 export default function TaskClientPage({ id }: Props) {
-  const { getTaskById } = useTaskStore();
-  const task = getTaskById(id);
+  // All hooks must be called at the top level, before any conditional logic
+  const { getTaskById } = useHydratedTaskStore();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Function to get the output message for a given shell call message
-  const getOutputForCall = (callId: string) => {
-    return task?.messages.find(
-      (message) =>
-        message.type === "local_shell_call_output" &&
-        message.data?.call_id === callId
-    );
-  };
-
-  const { latestData } = useInngestSubscription({
-    refreshToken: fetchRealtimeSubscriptionToken,
-    bufferInterval: 0,
+  const { latestData, isRecovering, recoverMissedUpdates } = useTemporalSubscription({
+    refreshToken: getTemporalSubscriptionToken,
     enabled: true,
+    taskId: id,
   });
+
+  // Sync workflow status when component mounts
+  useWorkflowSync(id);
+
+  // Get task after all hooks are called
+  const task = getTaskById(id);
 
   useEffect(() => {
     if (latestData?.channel === "tasks" && latestData.topic === "update") {
-      console.log(latestData.data);
+      // Handle real-time task updates here if needed
+      // For now, updates are handled in the Container component
     }
   }, [latestData]);
 
@@ -62,14 +63,38 @@ export default function TaskClientPage({ id }: Props) {
     }
   }, [task?.messages]);
 
+  // Function to get the output message for a given shell call message
+  const getOutputForCall = (callId: string) => {
+    return task?.messages.find(
+      (message) =>
+        message.type === "local_shell_call_output" &&
+        message.data?.call_id === callId
+    );
+  };
+
+  // If task is not found, show a loading or error state
+  if (!task) {
+    return (
+      <div className="flex flex-col h-screen">
+        <div className="flex items-center justify-center flex-1">
+          <p className="text-muted-foreground">Task not found or loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen">
-      <TaskNavbar id={id} />
+      <TaskNavbar
+        id={id}
+        onRecovery={recoverMissedUpdates}
+        isRecovering={isRecovering}
+      />
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar for chat messages */}
-        <div className="w-150 border-r border-border bg-card flex flex-col">
-          <ScrollArea className="flex-1">
-            <div className="p-4 flex flex-col gap-y-4">
+        <div className="w-150 border-r border-border bg-card flex flex-col min-h-0">
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="p-4 flex flex-col gap-y-4 min-h-full">
               <div className="bg-muted rounded-xl px-4 py-3 text-right w-fit self-end">
                 <p>{task?.title}</p>
               </div>
@@ -80,27 +105,43 @@ export default function TaskClientPage({ id }: Props) {
                     message.type === "message"
                 )
 
-                .map((message) => {
+                .map((message, index) => {
+                  // Generate a more robust key based on message content and position
+                  const messageKey = `message-${index}-${message.data?.id || message.data?.call_id || crypto.randomUUID()}-${message.type}-${message.role}`;
+
                   return (
                     <div
-                      key={message.data?.id as string}
+                      key={messageKey}
                       className="mt-4 flex-wrap flex flex-col"
                     >
                       {message.role === "assistant" && (
-                        <Markdown
-                          repoUrl={
-                            task?.repository
-                              ? `https://github.com/${task.repository}`
-                              : undefined
-                          }
-                          branch={task?.branch}
-                        >
-                          {message.data?.text as string}
-                        </Markdown>
+                        <MarkdownErrorBoundary>
+                          <Markdown
+                            repoUrl={
+                              task?.repository
+                                ? `https://github.com/${task.repository}`
+                                : undefined
+                            }
+                            branch={task?.branch}
+                          >
+                            {(() => {
+                              const rawContent = (message.data?.text as string) || '';
+
+                              // Debug logging for problematic content
+                              if (hasProblematicTags(rawContent)) {
+                                const problematicTags = extractProblematicTags(rawContent);
+                                console.warn('Found problematic tags in message content:', problematicTags);
+                                console.warn('Raw content:', rawContent);
+                              }
+
+                              return sanitizeMarkdownContent(rawContent);
+                            })()}
+                          </Markdown>
+                        </MarkdownErrorBoundary>
                       )}
                       {message.role === "user" && (
                         <div className="bg-muted rounded-xl px-4 py-3 text-right self-end w-fit">
-                          <p>{message.data?.text as string}</p>
+                          <p>{(message.data?.text as string) || ''}</p>
                         </div>
                       )}
                     </div>
@@ -109,20 +150,32 @@ export default function TaskClientPage({ id }: Props) {
               {task?.status === "IN_PROGRESS" && (
                 <div className="flex items-start gap-x-2 mt-4">
                   <Terminal className="size-4 text-muted-foreground" />
-                  <p className="-mt-1">
+                  <div className="-mt-1">
                     <TextShimmer>
                       {task?.statusMessage
                         ? `${task.statusMessage}...`
                         : "Working on task..."}
                     </TextShimmer>
-                  </p>
+                  </div>
+                </div>
+              )}
+              {isRecovering && (
+                <div className="flex items-start gap-x-2 mt-4">
+                  <RefreshCw className="size-4 text-blue-500 animate-spin" />
+                  <div className="-mt-1">
+                    <TextShimmer>
+                      Recovering missed updates...
+                    </TextShimmer>
+                  </div>
                 </div>
               )}
             </div>
           </ScrollArea>
 
           {/* Message input component */}
-          <MessageInput task={task!} />
+          <div className="flex-shrink-0 border-t border-border">
+            <MessageInput task={task} />
+          </div>
         </div>
 
         {/* Right panel for details */}
@@ -133,14 +186,16 @@ export default function TaskClientPage({ id }: Props) {
             <div className="max-w-3xl mx-auto w-full py-10">
               {/* Details content will go here */}
               <div className="flex flex-col gap-y-10">
-                {task?.messages.map((message) => {
+                {task?.messages.map((message, index) => {
                   if (message.type === "local_shell_call") {
                     const output = getOutputForCall(
                       message.data?.call_id as string
                     );
+                    const shellKey = `shell-${index}-${message.data?.call_id || message.data?.id || crypto.randomUUID()}-${message.type}`;
+
                     return (
                       <div
-                        key={message.data?.call_id as string}
+                        key={shellKey}
                         className="flex flex-col"
                       >
                         <div className="flex items-start gap-x-2">

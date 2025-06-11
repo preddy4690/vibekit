@@ -1,49 +1,66 @@
 "use client";
-import { useInngestSubscription } from "@inngest/realtime/hooks";
 import { useEffect } from "react";
-
-import { fetchRealtimeSubscriptionToken } from "@/app/actions/inngest";
-import { useTaskStore } from "@/stores/tasks";
+import { useTemporalSubscription } from "@/hooks/useTemporalSubscription";
+import { getTemporalSubscriptionToken } from "@/app/actions/temporal";
+import { useHydratedTaskStore } from "@/hooks/useHydratedTaskStore";
 
 export default function Container({ children }: { children: React.ReactNode }) {
-  const { updateTask, getTaskById } = useTaskStore();
-  const { latestData } = useInngestSubscription({
-    refreshToken: fetchRealtimeSubscriptionToken,
-    bufferInterval: 0,
+  const { updateTask, updateTaskWithSequence, getTaskById } = useHydratedTaskStore();
+  const { latestData, isRecovering } = useTemporalSubscription({
+    refreshToken: getTemporalSubscriptionToken,
     enabled: true,
   });
 
   useEffect(() => {
     if (latestData?.channel === "tasks" && latestData.topic === "status") {
-      updateTask(latestData.data.taskId, {
-        status: latestData.data.status,
-        hasChanges: true,
-        sessionId: latestData.data.sessionId,
-      });
+      // Use sequence-aware update for status changes
+      updateTaskWithSequence(
+        latestData.data.taskId,
+        {
+          status: latestData.data.status,
+          hasChanges: true,
+          sessionId: latestData.data.sessionId,
+        },
+        latestData.sequence,
+        latestData.timestamp
+      );
     }
 
     if (latestData?.channel === "tasks" && latestData.topic === "update") {
       if (latestData.data.message.type === "git") {
-        updateTask(latestData.data.taskId, {
-          statusMessage: latestData.data.message.output as string,
-        });
+        updateTaskWithSequence(
+          latestData.data.taskId,
+          {
+            statusMessage: latestData.data.message.output as string,
+          },
+          latestData.sequence,
+          latestData.timestamp
+        );
       }
 
       if (latestData.data.message.type === "local_shell_call") {
         const task = getTaskById(latestData.data.taskId);
-        updateTask(latestData.data.taskId, {
-          statusMessage: `Running command ${(
-            latestData.data.message as { action: { command: string[] } }
-          ).action.command.join(" ")}`,
-          messages: [
-            ...(task?.messages || []),
-            {
-              role: "assistant",
-              type: "local_shell_call",
-              data: latestData.data.message,
-            },
-          ],
-        });
+        updateTaskWithSequence(
+          latestData.data.taskId,
+          {
+            statusMessage: `Running command ${(
+              latestData.data.message as { action: { command: string[] } }
+            ).action.command.join(" ")}`,
+            messages: [
+              ...(task?.messages || []),
+              {
+                role: "assistant",
+                type: "local_shell_call",
+                data: {
+                  ...latestData.data.message,
+                  id: latestData.data.message.call_id || crypto.randomUUID(),
+                },
+              },
+            ],
+          },
+          latestData.sequence,
+          latestData.timestamp
+        );
       }
 
       if (latestData.data.message.type === "local_shell_call_output") {
@@ -54,7 +71,10 @@ export default function Container({ children }: { children: React.ReactNode }) {
             {
               role: "assistant",
               type: "local_shell_call_output",
-              data: latestData.data.message,
+              data: {
+                ...latestData.data.message,
+                id: latestData.data.message.call_id || crypto.randomUUID(),
+              },
             },
           ],
         });
@@ -73,7 +93,10 @@ export default function Container({ children }: { children: React.ReactNode }) {
             {
               role: "assistant",
               type: "message",
-              data: (latestData.data.message.content as { text: string }[])[0],
+              data: {
+                ...(latestData.data.message.content as { text: string }[])[0],
+                id: crypto.randomUUID(),
+              },
             },
           ],
         });

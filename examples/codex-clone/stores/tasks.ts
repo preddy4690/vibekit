@@ -23,6 +23,8 @@ export interface Task {
   isArchived: boolean;
   mode: "code" | "ask";
   hasChanges: boolean;
+  lastSequence?: number;
+  lastTimestamp?: number;
 }
 
 interface TaskStore {
@@ -33,6 +35,20 @@ interface TaskStore {
   updateTask: (
     id: string,
     updates: Partial<Omit<Task, "id" | "createdAt">>
+  ) => void;
+  updateTaskWithSequence: (
+    id: string,
+    updates: Partial<Task>,
+    sequence?: number,
+    timestamp?: number
+  ) => void;
+  applyBatchUpdates: (
+    updates: Array<{
+      taskId: string;
+      updates: Partial<Task>;
+      sequence?: number;
+      timestamp?: number
+    }>
   ) => void;
   setTasks: (tasks: Task[]) => void;
   removeTask: (id: string) => void;
@@ -73,6 +89,45 @@ export const useTaskStore = create<TaskStore>()(
               ? { ...task, ...updates, updatedAt: new Date().toISOString() }
               : task
           ),
+        }));
+      },
+      updateTaskWithSequence: (id, updates, sequence, timestamp) => {
+        set((state) => ({
+          tasks: state.tasks.map((task) => {
+            if (task.id === id) {
+              // Only apply update if sequence is newer or not tracked
+              if (!sequence || !task.lastSequence || sequence > task.lastSequence) {
+                return {
+                  ...task,
+                  ...updates,
+                  updatedAt: new Date().toISOString(),
+                  lastSequence: sequence || task.lastSequence,
+                  lastTimestamp: timestamp || task.lastTimestamp,
+                };
+              }
+            }
+            return task;
+          }),
+        }));
+      },
+      applyBatchUpdates: (updates) => {
+        set((state) => ({
+          tasks: state.tasks.map((task) => {
+            const taskUpdate = updates.find(u => u.taskId === task.id);
+            if (taskUpdate) {
+              // Only apply update if sequence is newer or not tracked
+              if (!taskUpdate.sequence || !task.lastSequence || taskUpdate.sequence > task.lastSequence) {
+                return {
+                  ...task,
+                  ...taskUpdate.updates,
+                  updatedAt: new Date().toISOString(),
+                  lastSequence: taskUpdate.sequence || task.lastSequence,
+                  lastTimestamp: taskUpdate.timestamp || task.lastTimestamp,
+                };
+              }
+            }
+            return task;
+          }),
         }));
       },
       setTasks: (tasks) => set(() => ({ tasks })),

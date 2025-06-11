@@ -1,5 +1,5 @@
 "use client";
-import { HardDrive, Split } from "lucide-react";
+import { HardDrive } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -12,16 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useGitHubAuth } from "@/hooks/use-github-auth";
-import { useTaskStore } from "@/stores/tasks";
-import { createTaskAction } from "@/app/actions/inngest";
+import { BranchSelector } from "@/components/branch-selector";
+import { useHydratedTaskStore } from "@/hooks/useHydratedTaskStore";
+import { createTaskAction } from "@/app/actions/temporal";
 
 export default function TaskForm() {
   const { environments } = useEnvironmentStore();
-  const { addTask } = useTaskStore();
-  const { branches, fetchBranches } = useGitHubAuth();
-  const [selectedBranch, setSelectedBranch] = useState<string>(
-    branches.find((branch) => branch.isDefault)?.name || ""
-  );
+  const { addTask } = useHydratedTaskStore();
+  const [selectedBranch, setSelectedBranch] = useState<string>("");
   const [selectedEnvironment, setSelectedEnvironment] = useState<string>(
     environments[0]?.id || ""
   );
@@ -67,25 +65,10 @@ export default function TaskForm() {
     }
   }, [environments, selectedEnvironment]);
 
-  useEffect(() => {
-    if (selectedEnvironment) {
-      const environment = environments.find(
-        (env) => env.id === selectedEnvironment
-      );
-
-      if (environment?.githubRepository) {
-        fetchBranches(environment.githubRepository);
-      }
-    }
-  }, [selectedEnvironment]);
-
-  useEffect(() => {
-    if (branches.length > 0) {
-      setSelectedBranch(
-        branches.find((branch) => branch.isDefault)?.name || ""
-      );
-    }
-  }, [branches]);
+  // Get the selected environment's repository
+  const selectedEnvironmentData = environments.find(
+    (env) => env.id === selectedEnvironment
+  );
 
   return (
     <div className="max-w-3xl mx-auto w-full flex flex-col gap-y-10 mt-14">
@@ -130,25 +113,13 @@ export default function TaskForm() {
                   Create an environment
                 </Button>
               )}
-              {selectedEnvironment && (
-                <Select
-                  onValueChange={(value) => setSelectedBranch(value)}
+              {selectedEnvironment && selectedEnvironmentData?.githubRepository && (
+                <BranchSelector
+                  repository={selectedEnvironmentData.githubRepository}
                   value={selectedBranch}
-                >
-                  <SelectTrigger>
-                    <Split />
-                    <SelectValue placeholder="Branch..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={branch.name} value={branch.name}>
-                        <div className="flex w-full">
-                          <span>{branch.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onValueChange={setSelectedBranch}
+                  placeholder="Select branch..."
+                />
               )}
             </div>
             {value && (

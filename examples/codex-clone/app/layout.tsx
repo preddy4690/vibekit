@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Codex UI | An open-source OpenAI Codex clone",
+  title: "CodeFabric | AI-Powered Code Generation Platform",
   description:
-    "Codex UI is a modern, open-source, and fully customizable UI for OpenAI Codex.",
+    "CodeFabric is a modern, AI-powered code generation platform with seamless workflow management and real-time collaboration.",
 };
 
 export default function RootLayout({

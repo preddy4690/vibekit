@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { CodexAgent } from "../src/agents/codex";
 import { CodexConfig, CodexStreamCallbacks } from "../src/types";
-import { Sandbox } from "@e2b/code-interpreter";
+import { Sandbox } from "e2b";
 import { generatePRMetadata } from "../src/agents/utils.js";
 import { createSandboxProvider } from "../src/services/sandbox.js";
 

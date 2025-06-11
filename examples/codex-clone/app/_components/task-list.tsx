@@ -1,8 +1,9 @@
 "use client";
 import { Archive, Check, Dot, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useEffect, useState } from "react";
 
-import { useTaskStore } from "@/stores/tasks";
+import { useHydratedTaskStore } from "@/hooks/useHydratedTaskStore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { TextShimmer } from "@/components/ui/text-shimmer";
@@ -10,9 +11,14 @@ import Link from "next/link";
 
 export default function TaskList() {
   const { getActiveTasks, getArchivedTasks, archiveTask, removeTask } =
-    useTaskStore();
+    useHydratedTaskStore();
   const activeTasks = getActiveTasks();
   const archivedTasks = getArchivedTasks();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="max-w-3xl mx-auto w-full p-1 rounded-lg bg-muted">
@@ -57,9 +63,12 @@ export default function TaskList() {
                       ) : (
                         <div className="flex items-center gap-0">
                           <p className="text-sm text-muted-foreground">
-                            {formatDistanceToNow(new Date(task.createdAt), {
-                              addSuffix: true,
-                            })}
+                            {mounted
+                              ? formatDistanceToNow(new Date(task.createdAt), {
+                                  addSuffix: true,
+                                })
+                              : 'Loading...'
+                            }
                           </p>
                           <Dot className="size-4 text-muted-foreground" />
                           <p className="text-sm text-muted-foreground">
