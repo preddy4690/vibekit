@@ -58,12 +58,20 @@ export async function createTaskWorkflow(
   // Set up query handler to expose workflow state
   setHandler(getWorkflowStateQuery, () => workflowState);
 
+  // Helper function to generate deterministic IDs for workflow updates
+  const generateUpdateId = (sequence: number): string => {
+    // Create a deterministic ID using task ID, sequence, and start time
+    // This ensures uniqueness within the workflow while being deterministic
+    return `${task.id}-${sequence}-${workflowState.startTime}`;
+  };
+
   // Helper function to add update to workflow state
   const addUpdate = (type: 'status' | 'message', data: any): WorkflowUpdate => {
+    const sequence = ++workflowState.lastSequence;
     const update: WorkflowUpdate = {
-      id: crypto.randomUUID(),
+      id: generateUpdateId(sequence),
       timestamp: Date.now(),
-      sequence: ++workflowState.lastSequence,
+      sequence,
       type,
       data,
     };
