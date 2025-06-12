@@ -1,5 +1,5 @@
 "use client";
-import { ArrowLeft, Dot, RefreshCw } from "lucide-react";
+import { ArrowLeft, Dot, RefreshCw, Code, MessageCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useState } from "react";
 
@@ -83,7 +83,17 @@ export default function TaskNavbar({ id, onRecovery, isRecovering = false }: Pro
         </Button>
         <div className="h-8 border-r" />
         <div className="flex flex-col gap-x-2 ml-4">
-          <h3 className=" font-medium">{task?.title}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium">{task?.title}</h3>
+            <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+              task?.mode === 'code' 
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' 
+                : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+            }`}>
+              {task?.mode === 'code' ? <Code className="size-3" /> : <MessageCircle className="size-3" />}
+              {task?.mode === 'code' ? 'Code' : 'Ask'}
+            </div>
+          </div>
           <div className="flex items-center gap-x-0">
             <p className="text-sm text-muted-foreground">
               {timeAgo}

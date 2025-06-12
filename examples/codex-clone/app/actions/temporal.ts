@@ -20,13 +20,45 @@ export const createTaskAction = async ({
   }
 
   const client = await getTemporalClient();
+  const workflowId = `task-${task.id}`;
   
-  // Start the workflow
-  await client.workflow.start('createTaskWorkflow', {
-    args: [task, githubToken, sessionId, prompt],
-    taskQueue: 'codex-clone',
-    workflowId: `task-${task.id}`,
-  });
+  try {
+    // Try to start a new workflow
+    await client.workflow.start('createTaskWorkflow', {
+      args: [task, githubToken, sessionId, prompt],
+      taskQueue: 'codex-clone',
+      workflowId,
+    });
+  } catch (error: unknown) {
+    // If workflow already exists, signal it to continue with the new prompt
+    if (error instanceof Error && (error.message?.includes('already exists') || error.message?.includes('WorkflowExecutionAlreadyStarted'))) {
+      console.log(`[CREATE_TASK] Workflow ${workflowId} already exists, signaling continuation`);
+      // For now, we'll restart the workflow - in a production app you might want to signal instead
+      // This is a limitation of the current implementation
+      console.log(`[CREATE_TASK] Restarting workflow to continue conversation`);
+      
+      // Try to terminate the existing workflow first
+      try {
+        const handle = client.workflow.getHandle(workflowId);
+        await handle.terminate('Restarting for continuation');
+        console.log(`[CREATE_TASK] Terminated existing workflow`);
+      } catch (terminateError) {
+        console.log(`[CREATE_TASK] Could not terminate existing workflow:`, terminateError);
+      }
+      
+      // Wait a bit before restarting
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Start new workflow with updated task
+      await client.workflow.start('createTaskWorkflow', {
+        args: [task, githubToken, sessionId, prompt],
+        taskQueue: 'codex-clone',
+        workflowId,
+      });
+    } else {
+      throw error;
+    }
+  }
 };
 
 // This function will be used by the client to subscribe to real-time updates

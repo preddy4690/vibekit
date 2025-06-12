@@ -107,9 +107,32 @@ export async function generateCode({
       await vibekit.setSession(sessionId);
     }
 
+    // Build conversation history from task messages
+    const conversationMessages = task.messages
+      .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+      .filter(msg => msg.type === 'message')
+      .map(msg => ({
+        role: msg.role,
+        content: (msg.data?.text as string) || ''
+      }));
+
+    console.log(`[GENERATE_CODE] Task has ${task.messages.length} total messages`);
+    console.log(`[GENERATE_CODE] Filtered conversation messages (${conversationMessages.length}):`, conversationMessages);
+
+    // Add the current prompt as the latest user message if provided
+    if (prompt && conversationMessages.length > 0) {
+      conversationMessages.push({
+        role: 'user' as const,
+        content: prompt
+      });
+      console.log(`[GENERATE_CODE] Added current prompt to conversation history`);
+    }
+
     const response = await vibekit.generateCode({
       prompt: prompt || task.title,
       mode: task.mode,
+      // Pass conversation history to maintain context
+      history: conversationMessages.length > 0 ? conversationMessages : undefined,
       callbacks: {
         onUpdate(message) {
         console.log(`[GENERATE_CODE] Raw message from ${modelType}:`, message);
