@@ -61,7 +61,7 @@ export class CodexAgent extends BaseAgent {
         this.model ? ` --model ${this.model}` : ""
       }${
         this.provider ? ` --provider ${this.provider}` : ""
-      } --quiet "${_prompt}"`,
+      } --output-format stream-json --verbose "${_prompt}"`,
       errorPrefix: "Codex",
       labelName: "codex",
       labelColor: "ededed",
@@ -123,7 +123,7 @@ export class CodexAgent extends BaseAgent {
         this.model ? ` --model ${this.model}` : ""
       }${
         this.provider ? ` --provider ${this.provider}` : ""
-      } --quiet "${_prompt}"`,
+      } --output-format stream-json --verbose "${_prompt}"`,
     });
 
     const result = await super.generateCode(

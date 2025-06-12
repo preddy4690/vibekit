@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { ArrowLeft, Dot, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useState } from "react";
@@ -79,11 +78,8 @@ export default function TaskNavbar({ id, onRecovery, isRecovering = false }: Pro
           onDoubleClick={handleBack}
           title="Go back (or press Escape)"
           className="hover:bg-accent transition-colors"
-          asChild
         >
-          <Link href="/" onClick={handleBack}>
-            <ArrowLeft />
-          </Link>
+          <ArrowLeft />
         </Button>
         <div className="h-8 border-r" />
         <div className="flex flex-col gap-x-2 ml-4">

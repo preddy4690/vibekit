@@ -77,8 +77,8 @@ export async function generateCode({
   console.log(`[GENERATE_CODE] Starting code generation for task ${task.id} with model: ${task.model || 'claude'}`);
 
   try {
-    // Use the model specified in the task, default to claude
-    const modelType = task.model || "claude";
+    // Use the model specified in the task, default to codex (OpenAI)
+    const modelType = task.model || "codex";
     const apiKey = modelType === "claude"
       ? process.env.ANTHROPIC_API_KEY!
       : process.env.OPENAI_API_KEY!;
@@ -112,9 +112,111 @@ export async function generateCode({
       mode: task.mode,
       callbacks: {
         onUpdate(message) {
+        console.log(`[GENERATE_CODE] Raw message from ${modelType}:`, message);
+
         try {
           // Try to parse as JSON first
-          const parsedMessage = JSON.parse(message);
+          let parsedMessage;
+          try {
+            parsedMessage = JSON.parse(message);
+          } catch (parseError) {
+            // If direct parsing fails, try to extract JSON from the message
+            console.log(`[GENERATE_CODE] Direct JSON parse failed, trying to extract JSON from message`);
+            const jsonMatch = message.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              parsedMessage = JSON.parse(jsonMatch[0]);
+            } else {
+              throw parseError;
+            }
+          }
+          console.log(`[GENERATE_CODE] Parsed message from ${modelType}:`, parsedMessage);
+
+          // Handle Claude's nested format where shell calls are in stdout
+          let hasClaudeShellCommands = false;
+          if (parsedMessage.type === 'end' && parsedMessage.output && modelType === 'claude') {
+            try {
+              const outputData = JSON.parse(parsedMessage.output);
+              console.log(`[GENERATE_CODE] Claude output data:`, outputData);
+
+              if (outputData.stdout) {
+                // Parse each line of stdout as separate JSON messages
+                const lines = outputData.stdout.split('\n').filter((line: string) => line.trim());
+                console.log(`[GENERATE_CODE] Claude stdout lines (${lines.length}):`, lines);
+
+                lines.forEach((line: string, index: number) => {
+                  try {
+                    const lineData = JSON.parse(line);
+                    console.log(`[GENERATE_CODE] Claude line ${index}:`, lineData);
+                    console.log(`[GENERATE_CODE] Line type: ${lineData.type}, has content: ${!!lineData.message?.content}`);
+
+                    // Handle assistant messages with tool_use (shell commands)
+                    if (lineData.type === 'assistant' && lineData.message?.content) {
+                      lineData.message.content.forEach((contentItem: any) => {
+                        if (contentItem.type === 'tool_use') {
+                          console.log(`[GENERATE_CODE] Found tool_use:`, contentItem);
+                          hasClaudeShellCommands = true;
+
+                          // Map different tool types to shell commands
+                          let command = '';
+                          let description = '';
+
+                          if (contentItem.name === 'LS') {
+                            command = `ls -la ${contentItem.input.path || '.'}`;
+                            description = `List files in ${contentItem.input.path || 'current directory'}`;
+                          } else if (contentItem.name === 'Bash') {
+                            command = contentItem.input.command;
+                            description = contentItem.input.description || command;
+                          } else {
+                            command = `${contentItem.name.toLowerCase()} ${JSON.stringify(contentItem.input)}`;
+                            description = `Execute ${contentItem.name} tool`;
+                          }
+
+                          publishTaskUpdate({
+                            taskId: task.id,
+                            message: {
+                              type: 'local_shell_call',
+                              status: 'completed',
+                              action: {
+                                command: ['bash', '-c', command],
+                                description: description
+                              },
+                              call_id: contentItem.id,
+                              id: contentItem.id
+                            },
+                          });
+                        }
+                      });
+                    }
+
+                    // Handle user messages with tool_result (shell command output)
+                    else if (lineData.type === 'user' && lineData.message?.content) {
+                      lineData.message.content.forEach((contentItem: any) => {
+                        if (contentItem.type === 'tool_result') {
+                          console.log(`[GENERATE_CODE] Found tool_result:`, contentItem);
+
+                          publishTaskUpdate({
+                            taskId: task.id,
+                            message: {
+                              type: 'local_shell_call_output',
+                              call_id: contentItem.tool_use_id,
+                              output: JSON.stringify({
+                                output: contentItem.content,
+                                metadata: { exit_code: contentItem.is_error ? 1 : 0 }
+                              })
+                            },
+                          });
+                        }
+                      });
+                    }
+                  } catch (lineParseError) {
+                    console.log(`[GENERATE_CODE] Failed to parse line ${index}:`, lineParseError);
+                  }
+                });
+              }
+            } catch (outputParseError) {
+              console.log(`[GENERATE_CODE] Failed to parse Claude output:`, outputParseError);
+            }
+          }
 
           // Format the message according to the expected UI types
           if (parsedMessage.type === 'local_shell_call') {
@@ -162,22 +264,116 @@ export async function generateCode({
                 ...parsedMessage
               },
             });
-          } else {
-            // Pass through other message types
+          } else if (!hasClaudeShellCommands) {
+            // Only send text message if we didn't find Claude shell commands
             publishTaskUpdate({
               taskId: task.id,
-              message: parsedMessage,
+              message: {
+                type: 'text',
+                content: message,
+              },
             });
           }
-        } catch {
+        } catch (parseError) {
           // If JSON parsing fails, treat as plain text
-          publishTaskUpdate({
-            taskId: task.id,
-            message: {
-              type: 'text',
-              content: message,
-            },
-          });
+          console.log(`[GENERATE_CODE] Failed to parse JSON from ${modelType}, treating as text:`, message);
+          console.log(`[GENERATE_CODE] Parse error:`, parseError);
+
+          // For Claude, try to extract shell commands from the text message
+          let hasClaudeShellCommandsInCatch = false;
+          if (modelType === 'claude' && message.includes('"type":"end"')) {
+            try {
+              // Extract the JSON from the text message
+              const jsonMatch = message.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const endMessage = JSON.parse(jsonMatch[0]);
+                if (endMessage.type === 'end' && endMessage.output) {
+                  const outputData = JSON.parse(endMessage.output);
+                  if (outputData.stdout) {
+                    // Parse each line of stdout as separate JSON messages
+                    const lines = outputData.stdout.split('\n').filter((line: string) => line.trim());
+                    console.log(`[GENERATE_CODE] Claude stdout lines count: ${lines.length}`);
+                    lines.forEach((line: string) => {
+                      try {
+                        const lineData = JSON.parse(line);
+                        console.log(`[GENERATE_CODE] Claude line data:`, lineData);
+                        if (lineData.type === 'assistant' && lineData.message?.content) {
+                          // Look for tool_use in the content
+                          lineData.message.content.forEach((contentItem: any) => {
+                            if (contentItem.type === 'tool_use') {
+                              console.log(`[GENERATE_CODE] Found tool_use in catch:`, contentItem);
+                              hasClaudeShellCommandsInCatch = true;
+
+                              // Map different tool types to shell commands
+                              let command = '';
+                              let description = '';
+
+                              if (contentItem.name === 'LS') {
+                                command = `ls -la ${contentItem.input.path || '.'}`;
+                                description = `List files in ${contentItem.input.path || 'current directory'}`;
+                              } else if (contentItem.name === 'Bash') {
+                                command = contentItem.input.command;
+                                description = contentItem.input.description || command;
+                              } else {
+                                command = `${contentItem.name.toLowerCase()} ${JSON.stringify(contentItem.input)}`;
+                                description = `Execute ${contentItem.name} tool`;
+                              }
+
+                              publishTaskUpdate({
+                                taskId: task.id,
+                                message: {
+                                  type: 'local_shell_call',
+                                  status: 'completed',
+                                  action: {
+                                    command: ['bash', '-c', command],
+                                    description: description
+                                  },
+                                  call_id: contentItem.id,
+                                  id: contentItem.id
+                                },
+                              });
+                            }
+                          });
+                        } else if (lineData.type === 'user' && lineData.message?.content) {
+                          // Look for tool_result in the content
+                          lineData.message.content.forEach((contentItem: any) => {
+                            if (contentItem.type === 'tool_result') {
+                              publishTaskUpdate({
+                                taskId: task.id,
+                                message: {
+                                  type: 'local_shell_call_output',
+                                  call_id: contentItem.tool_use_id,
+                                  output: JSON.stringify({
+                                    output: contentItem.content,
+                                    metadata: { exit_code: contentItem.is_error ? 1 : 0 }
+                                  })
+                                },
+                              });
+                            }
+                          });
+                        }
+                      } catch (lineParseError) {
+                        // Skip lines that aren't valid JSON
+                      }
+                    });
+                  }
+                }
+              }
+            } catch (extractError) {
+              console.log(`[GENERATE_CODE] Failed to extract Claude shell commands:`, extractError);
+            }
+          }
+
+          // Only send text message if we didn't find Claude shell commands
+          if (!hasClaudeShellCommandsInCatch) {
+            publishTaskUpdate({
+              taskId: task.id,
+              message: {
+                type: 'text',
+                content: message,
+              },
+            });
+          }
         }
       },
     },

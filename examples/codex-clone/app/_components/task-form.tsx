@@ -23,7 +23,7 @@ export default function TaskForm() {
   const [selectedEnvironment, setSelectedEnvironment] = useState<string>(
     environments[0]?.id || ""
   );
-  const [selectedModel, setSelectedModel] = useState<string>("claude");
+  const [selectedModel, setSelectedModel] = useState<string>("codex");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
 

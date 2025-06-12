@@ -102,7 +102,7 @@ export default function TaskClientPage({ id }: Props) {
                 .filter(
                   (message) =>
                     (message.role === "assistant" || message.role === "user") &&
-                    message.type === "message"
+                    (message.type === "message" || message.type === "claude_working")
                 )
 
                 .map((message, index) => {
@@ -114,7 +114,17 @@ export default function TaskClientPage({ id }: Props) {
                       key={messageKey}
                       className="mt-4 flex-wrap flex flex-col"
                     >
-                      {message.role === "assistant" && (
+                      {message.role === "assistant" && message.type === "claude_working" && (
+                        <div className="flex items-start gap-x-2">
+                          <Terminal className="size-4 text-orange-500" />
+                          <div className="-mt-1">
+                            <TextShimmer>
+                              {(message.data?.text as string) || "Claude is working..."}
+                            </TextShimmer>
+                          </div>
+                        </div>
+                      )}
+                      {message.role === "assistant" && message.type === "message" && (
                         <MarkdownErrorBoundary>
                           <Markdown
                             repoUrl={
@@ -186,6 +196,26 @@ export default function TaskClientPage({ id }: Props) {
             <div className="max-w-3xl mx-auto w-full py-10">
               {/* Details content will go here */}
               <div className="flex flex-col gap-y-10">
+                {/* Show Claude working indicator in right panel */}
+                {(task?.messages.some(msg => msg.type === "claude_working") ||
+                  (task?.status === "IN_PROGRESS" && task?.model?.includes('claude') && task?.messages.length === 0)) && (
+                  <div className="flex flex-col">
+                    <div className="flex items-start gap-x-2">
+                      <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg p-4 w-full">
+                        <Terminal className="size-5 text-orange-500 animate-pulse" />
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm text-orange-700 dark:text-orange-300">
+                            Claude is working
+                          </span>
+                          <span className="text-xs text-orange-600 dark:text-orange-400">
+                            Analyzing codebase and executing commands...
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {task?.messages.map((message, index) => {
                   if (message.type === "local_shell_call") {
                     const output = getOutputForCall(
