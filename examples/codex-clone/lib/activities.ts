@@ -138,10 +138,65 @@ export async function generateCode({
           } catch (parseError) {
             // If direct parsing fails, try to extract JSON from the message
             console.log(`[GENERATE_CODE] Direct JSON parse failed, trying to extract JSON from message`);
-            const jsonMatch = message.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              parsedMessage = JSON.parse(jsonMatch[0]);
-            } else {
+            console.log(`[GENERATE_CODE] Message length: ${message.length}, first 200 chars:`, message.substring(0, 200));
+
+            // Try multiple JSON extraction strategies
+            let extractedJson = null;
+
+            // Strategy 1: Find the first complete JSON object
+            try {
+              let braceCount = 0;
+              let startIndex = -1;
+              let endIndex = -1;
+
+              for (let i = 0; i < message.length; i++) {
+                if (message[i] === '{') {
+                  if (startIndex === -1) startIndex = i;
+                  braceCount++;
+                } else if (message[i] === '}') {
+                  braceCount--;
+                  if (braceCount === 0 && startIndex !== -1) {
+                    endIndex = i;
+                    break;
+                  }
+                }
+              }
+
+              if (startIndex !== -1 && endIndex !== -1) {
+                extractedJson = message.substring(startIndex, endIndex + 1);
+                console.log(`[GENERATE_CODE] Extracted JSON (strategy 1):`, extractedJson.substring(0, 100) + '...');
+
+                // Validate that we have a reasonable JSON string before parsing
+                if (extractedJson.length > 0 && extractedJson.trim().startsWith('{') && extractedJson.trim().endsWith('}')) {
+                  parsedMessage = JSON.parse(extractedJson);
+                } else {
+                  throw new Error('Extracted JSON is not valid format');
+                }
+              }
+            } catch (strategy1Error) {
+              console.log(`[GENERATE_CODE] Strategy 1 failed:`, strategy1Error);
+
+              // Strategy 2: Use the original greedy regex as fallback
+              try {
+                const jsonMatch = message.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  extractedJson = jsonMatch[0];
+                  console.log(`[GENERATE_CODE] Extracted JSON (strategy 2):`, extractedJson.substring(0, 100) + '...');
+
+                  // Validate that we have a reasonable JSON string before parsing
+                  if (extractedJson.length > 0 && extractedJson.trim().startsWith('{') && extractedJson.trim().endsWith('}')) {
+                    parsedMessage = JSON.parse(extractedJson);
+                  } else {
+                    throw new Error('Extracted JSON from strategy 2 is not valid format');
+                  }
+                }
+              } catch (strategy2Error) {
+                console.log(`[GENERATE_CODE] Strategy 2 failed:`, strategy2Error);
+                throw parseError; // Throw the original parse error
+              }
+            }
+
+            if (!parsedMessage) {
               throw parseError;
             }
           }
@@ -308,10 +363,51 @@ export async function generateCode({
           let hasClaudeShellCommandsInCatch = false;
           if (modelType === 'claude' && message.includes('"type":"end"')) {
             try {
-              // Extract the JSON from the text message
-              const jsonMatch = message.match(/\{[\s\S]*\}/);
-              if (jsonMatch) {
-                const endMessage = JSON.parse(jsonMatch[0]);
+              // Extract the JSON from the text message using improved extraction
+              let extractedJson = null;
+
+              // Try the same improved JSON extraction strategy
+              try {
+                let braceCount = 0;
+                let startIndex = -1;
+                let endIndex = -1;
+
+                for (let i = 0; i < message.length; i++) {
+                  if (message[i] === '{') {
+                    if (startIndex === -1) startIndex = i;
+                    braceCount++;
+                  } else if (message[i] === '}') {
+                    braceCount--;
+                    if (braceCount === 0 && startIndex !== -1) {
+                      endIndex = i;
+                      break;
+                    }
+                  }
+                }
+
+                if (startIndex !== -1 && endIndex !== -1) {
+                  extractedJson = message.substring(startIndex, endIndex + 1);
+
+                  // Validate the extracted JSON
+                  if (!extractedJson.trim().startsWith('{') || !extractedJson.trim().endsWith('}')) {
+                    extractedJson = null; // Mark as invalid
+                  }
+                }
+              } catch (extractError) {
+                // Fallback to original regex
+                const jsonMatch = message.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  extractedJson = jsonMatch[0];
+
+                  // Validate the extracted JSON
+                  if (!extractedJson.trim().startsWith('{') || !extractedJson.trim().endsWith('}')) {
+                    extractedJson = null; // Mark as invalid
+                  }
+                }
+              }
+
+              if (extractedJson) {
+                const endMessage = JSON.parse(extractedJson);
                 if (endMessage.type === 'end' && endMessage.output) {
                   const outputData = JSON.parse(endMessage.output);
                   if (outputData.stdout) {
