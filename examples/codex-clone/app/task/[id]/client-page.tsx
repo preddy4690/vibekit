@@ -94,8 +94,8 @@ export default function TaskClientPage({ id }: Props) {
         {/* Sidebar for chat messages */}
         <div className="w-150 border-r border-border bg-card flex flex-col min-h-0">
           <ScrollArea className="flex-1 min-h-0">
-            <div className="p-4 flex flex-col gap-y-4 min-h-full">
-              <div className="bg-muted rounded-xl px-4 py-3 text-right w-fit self-end">
+            <div className="p-4 flex flex-col gap-y-3 min-h-full">
+              <div className="bg-muted rounded-xl px-4 py-2 text-right w-fit self-end">
                 <p>{task?.title}</p>
               </div>
               {task?.messages
@@ -112,7 +112,7 @@ export default function TaskClientPage({ id }: Props) {
                   return (
                     <div
                       key={messageKey}
-                      className="mt-4 flex-wrap flex flex-col"
+                      className="mt-2 flex-wrap flex flex-col"
                     >
                       {message.role === "assistant" && message.type === "claude_working" && (
                         <div className="flex items-start gap-x-2">
@@ -150,7 +150,7 @@ export default function TaskClientPage({ id }: Props) {
                         </MarkdownErrorBoundary>
                       )}
                       {message.role === "user" && (
-                        <div className="bg-muted rounded-xl px-4 py-3 text-right self-end w-fit">
+                        <div className="bg-muted rounded-xl px-4 py-2 text-right self-end w-fit">
                           <p>{(message.data?.text as string) || ''}</p>
                         </div>
                       )}
@@ -158,7 +158,7 @@ export default function TaskClientPage({ id }: Props) {
                   );
                 })}
               {task?.status === "IN_PROGRESS" && (
-                <div className="flex items-start gap-x-2 mt-4">
+                <div className="flex items-start gap-x-2 mt-2">
                   <Terminal className="size-4 text-muted-foreground" />
                   <div className="-mt-1">
                     <TextShimmer>
@@ -170,7 +170,7 @@ export default function TaskClientPage({ id }: Props) {
                 </div>
               )}
               {isRecovering && (
-                <div className="flex items-start gap-x-2 mt-4">
+                <div className="flex items-start gap-x-2 mt-2">
                   <RefreshCw className="size-4 text-blue-500 animate-spin" />
                   <div className="-mt-1">
                     <TextShimmer>

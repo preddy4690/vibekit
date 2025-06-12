@@ -120,3 +120,204 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom styles for better markdown formatting in chat */
+@layer components {
+  .markdown-content {
+    /* Ensure proper spacing between elements */
+    line-height: 1.6;
+  }
+
+  .markdown-content > *:first-child {
+    margin-top: 0 !important;
+  }
+
+  .markdown-content > *:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  /* Better list styling */
+  .markdown-content ul,
+  .markdown-content ol {
+    padding-left: 1.5rem;
+    margin: 0.5rem 0;
+  }
+
+  .markdown-content li {
+    margin: 0.25rem 0;
+    line-height: 1.6;
+  }
+
+  .markdown-content li > p {
+    margin: 0.25rem 0;
+  }
+
+  /* Better paragraph spacing */
+  .markdown-content p {
+    margin: 0.5rem 0;
+    line-height: 1.7;
+  }
+
+  .markdown-content p:first-child {
+    margin-top: 0;
+  }
+
+  .markdown-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Better heading spacing */
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content h4,
+  .markdown-content h5,
+  .markdown-content h6 {
+    margin: 0.75rem 0 0.25rem 0;
+    line-height: 1.3;
+  }
+
+  .markdown-content h1:first-child,
+  .markdown-content h2:first-child,
+  .markdown-content h3:first-child,
+  .markdown-content h4:first-child,
+  .markdown-content h5:first-child,
+  .markdown-content h6:first-child {
+    margin-top: 0;
+  }
+
+  /* Better code block spacing */
+  .markdown-content pre {
+    margin: 0.75rem 0;
+  }
+
+  .markdown-content pre:first-child {
+    margin-top: 0;
+  }
+
+  .markdown-content pre:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Better blockquote spacing */
+  .markdown-content blockquote {
+    margin: 0.75rem 0;
+  }
+
+  .markdown-content blockquote:first-child {
+    margin-top: 0;
+  }
+
+  .markdown-content blockquote:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Better table spacing */
+  .markdown-content table {
+    margin: 0.75rem 0;
+  }
+
+  .markdown-content table:first-child {
+    margin-top: 0;
+  }
+
+  .markdown-content table:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Better horizontal rule spacing */
+  .markdown-content hr {
+    margin: 1rem 0;
+  }
+
+  .markdown-content hr:first-child {
+    margin-top: 0;
+  }
+
+  .markdown-content hr:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Ensure proper text formatting */
+  .markdown-content {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Compact markdown for shell output */
+  .shell-output .markdown-content p {
+    margin: 0.5rem 0;
+  }
+
+  .shell-output .markdown-content ul,
+  .shell-output .markdown-content ol {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
+  }
+
+  .shell-output .markdown-content li {
+    margin: 0.25rem 0;
+  }
+
+  .shell-output .markdown-content pre {
+    margin: 0;
+  }
+
+  .shell-output .markdown-content > div > div {
+    margin: 0.75rem 0;
+  }
+
+  .shell-output .markdown-content > div > div:first-child {
+    margin-top: 0;
+  }
+
+  .shell-output .markdown-content > div > div:last-child {
+    margin-bottom: 0;
+  }
+
+  .shell-output .markdown-content h1,
+  .shell-output .markdown-content h2,
+  .shell-output .markdown-content h3,
+  .shell-output .markdown-content h4,
+  .shell-output .markdown-content h5,
+  .shell-output .markdown-content h6 {
+    margin: 0.75rem 0 0.375rem 0;
+  }
+
+  .shell-output .markdown-content h1:first-child,
+  .shell-output .markdown-content h2:first-child,
+  .shell-output .markdown-content h3:first-child,
+  .shell-output .markdown-content h4:first-child,
+  .shell-output .markdown-content h5:first-child,
+  .shell-output .markdown-content h6:first-child {
+    margin-top: 0;
+  }
+
+  /* Better spacing for inline code */
+  .markdown-content code {
+    margin: 0 0.125rem;
+  }
+
+  /* Better spacing for links */
+  .markdown-content a {
+    margin: 0 0.125rem;
+  }
+
+  /* Ensure proper spacing between different element types */
+  .markdown-content p + h1,
+  .markdown-content p + h2,
+  .markdown-content p + h3,
+  .markdown-content p + h4,
+  .markdown-content p + h5,
+  .markdown-content p + h6 {
+    margin-top: 1rem;
+  }
+
+  .markdown-content ul + p,
+  .markdown-content ol + p,
+  .markdown-content blockquote + p,
+  .markdown-content pre + p {
+    margin-top: 0.75rem;
+  }
+}

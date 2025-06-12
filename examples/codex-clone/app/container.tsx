@@ -1,11 +1,13 @@
 "use client";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useTemporalSubscription } from "@/hooks/useTemporalSubscription";
 import { getTemporalSubscriptionToken } from "@/app/actions/temporal";
 import { useHydratedTaskStore } from "@/hooks/useHydratedTaskStore";
 
 export default function Container({ children }: { children: React.ReactNode }) {
   const { updateTask, updateTaskWithSequence, getTaskById } = useHydratedTaskStore();
+  const router = useRouter();
   const { latestData, isRecovering } = useTemporalSubscription({
     refreshToken: getTemporalSubscriptionToken,
     enabled: true,

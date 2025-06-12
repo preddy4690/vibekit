@@ -50,10 +50,12 @@ export async function GET(request: NextRequest) {
   return new NextResponse(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Cache-Control',
+      'X-Accel-Buffering': 'no', // Disable Nginx buffering
+      'X-Content-Type-Options': 'nosniff',
     },
   });
 }

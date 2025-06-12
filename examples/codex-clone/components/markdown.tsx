@@ -56,7 +56,7 @@ export const CodeComponent: React.FC<CodeComponentProps> = ({
   // Code block with language
   if (match) {
     return (
-      <div className="border rounded-lg bg-muted/30 my-6 overflow-hidden">
+      <div className="border rounded-lg bg-muted/30 my-2 overflow-hidden">
         <div className="flex items-center justify-between bg-muted px-3 py-2 border-b">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{match[1]}</span>
           <Button
@@ -122,17 +122,17 @@ const components: Partial<Components> = {
   code: CodeComponent,
   pre: ({ children }) => <>{children}</>,
   ol: ({ children, ...props }) => (
-    <ol className="list-decimal list-outside ml-5 mb-6 mt-3 space-y-3" {...props}>
+    <ol className="list-decimal list-outside ml-5 mb-2 mt-1 space-y-1" {...props}>
       {children}
     </ol>
   ),
   li: ({ children, ...props }) => (
-    <li className="text-sm leading-relaxed pl-1 mb-2" {...props}>
+    <li className="text-sm leading-relaxed pl-1" {...props}>
       {children}
     </li>
   ),
   ul: ({ children, ...props }) => (
-    <ul className="list-disc list-outside ml-5 mb-6 mt-3 space-y-3" {...props}>
+    <ul className="list-disc list-outside ml-5 mb-2 mt-1 space-y-1" {...props}>
       {children}
     </ul>
   ),
@@ -148,7 +148,7 @@ const components: Partial<Components> = {
   ),
   p: ({ children, ...props }) => (
     <p
-      className="mb-6 text-sm leading-relaxed text-foreground last:mb-0"
+      className="mb-2 text-sm leading-relaxed text-foreground last:mb-0"
       style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
       {...props}
     >
@@ -200,7 +200,7 @@ const components: Partial<Components> = {
   },
   h1: ({ children, ...props }) => (
     <h1
-      className="text-xl font-semibold mt-6 mb-4 text-foreground first:mt-0"
+      className="text-xl font-semibold mt-3 mb-2 text-foreground first:mt-0"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -209,7 +209,7 @@ const components: Partial<Components> = {
   ),
   h2: ({ children, ...props }) => (
     <h2
-      className="text-lg font-semibold mt-6 mb-3 text-foreground first:mt-0"
+      className="text-lg font-semibold mt-3 mb-1.5 text-foreground first:mt-0"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -218,7 +218,7 @@ const components: Partial<Components> = {
   ),
   h3: ({ children, ...props }) => (
     <h3
-      className="text-base font-semibold mt-5 mb-3 text-foreground first:mt-0"
+      className="text-base font-semibold mt-2.5 mb-1.5 text-foreground first:mt-0"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -227,7 +227,7 @@ const components: Partial<Components> = {
   ),
   h4: ({ children, ...props }) => (
     <h4
-      className="text-sm font-semibold mt-3 mb-2 text-foreground"
+      className="text-sm font-semibold mt-2 mb-1 text-foreground"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -236,7 +236,7 @@ const components: Partial<Components> = {
   ),
   h5: ({ children, ...props }) => (
     <h5
-      className="text-sm font-medium mt-2 mb-1 text-foreground"
+      className="text-sm font-medium mt-1.5 mb-1 text-foreground"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -245,7 +245,7 @@ const components: Partial<Components> = {
   ),
   h6: ({ children, ...props }) => (
     <h6
-      className="text-xs font-medium mt-2 mb-1 text-muted-foreground uppercase tracking-wide"
+      className="text-xs font-medium mt-1.5 mb-1 text-muted-foreground uppercase tracking-wide"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -263,7 +263,7 @@ const components: Partial<Components> = {
   ),
   blockquote: ({ children, ...props }) => (
     <blockquote
-      className="border-l-3 border-muted-foreground/30 pl-4 italic my-6 text-muted-foreground bg-muted/30 py-3 rounded-r-md"
+      className="border-l-3 border-muted-foreground/30 pl-4 italic my-2 text-muted-foreground bg-muted/30 py-2 rounded-r-md"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -271,7 +271,7 @@ const components: Partial<Components> = {
     </blockquote>
   ),
   table: ({ children, ...props }) => (
-    <ScrollArea className="w-140 border rounded-lg my-4">
+    <ScrollArea className="w-140 border rounded-lg my-2">
       <Table className="w-full" {...props}>
         {children}
       </Table>
@@ -290,7 +290,7 @@ const components: Partial<Components> = {
   tr: ({ children, ...props }) => <TableRow {...props}>{children}</TableRow>,
   th: ({ children, ...props }) => <TableHead {...props}>{children}</TableHead>,
   td: ({ children, ...props }) => <TableCell {...props}>{children}</TableCell>,
-  hr: () => <Separator className="my-6" />,
+  hr: () => <Separator className="my-2" />,
 };
 
 const remarkPlugins = [remarkGfm];

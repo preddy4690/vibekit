@@ -70,6 +70,7 @@ export function useTemporalSubscription(options: SubscriptionOptions = {}) {
     if (!enabled) return;
 
     let eventSource: EventSource | null = null;
+    let isCleaningUp = false;
 
     const setupSSE = async () => {
       try {
@@ -81,16 +82,20 @@ export function useTemporalSubscription(options: SubscriptionOptions = {}) {
         eventSource = new EventSource(`/api/temporal/stream?connectionId=${connectionId}`);
 
         eventSource.onopen = () => {
-          setIsConnected(true);
-          setError(null);
+          if (!isCleaningUp) {
+            setIsConnected(true);
+            setError(null);
 
-          // Trigger recovery when connection is established
-          if (taskId && lastSequenceRef.current > 0) {
-            setTimeout(() => recoverMissedUpdates(), 1000); // Small delay to ensure connection is stable
+            // Trigger recovery when connection is established
+            if (taskId && lastSequenceRef.current > 0) {
+              setTimeout(() => recoverMissedUpdates(), 1000); // Small delay to ensure connection is stable
+            }
           }
         };
 
         eventSource.onmessage = (event) => {
+          if (isCleaningUp) return;
+          
           try {
             const message = JSON.parse(event.data);
 
@@ -112,26 +117,44 @@ export function useTemporalSubscription(options: SubscriptionOptions = {}) {
         };
 
         eventSource.onerror = (err) => {
-          console.error('SSE error:', err);
-          setError(new Error('SSE connection error'));
-          setIsConnected(false);
+          if (!isCleaningUp) {
+            console.error('SSE error:', err);
+            setError(new Error('SSE connection error'));
+            setIsConnected(false);
+          }
         };
 
       } catch (err) {
-        setError(err instanceof Error ? err : new Error(String(err)));
-        setIsConnected(false);
+        if (!isCleaningUp) {
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setIsConnected(false);
+        }
       }
     };
 
     setupSSE();
 
-    // Cleanup function
-    return () => {
+    // Handle page unload/refresh
+    const handleBeforeUnload = () => {
+      isCleaningUp = true;
       if (eventSource) {
         eventSource.close();
       }
     };
-  }, [enabled, connect]);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cleanup function
+    return () => {
+      isCleaningUp = true;
+      if (eventSource) {
+        eventSource.close();
+      }
+      setIsConnected(false);
+      setError(null);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [enabled, connect, recoverMissedUpdates, taskId]);
 
   return {
     latestData,
