@@ -23,6 +23,7 @@ export default function TaskForm() {
   const [selectedEnvironment, setSelectedEnvironment] = useState<string>(
     environments[0]?.id || ""
   );
+  const [selectedModel, setSelectedModel] = useState<string>("claude");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
 
@@ -48,6 +49,7 @@ export default function TaskForm() {
           environments.find((env) => env.id === selectedEnvironment)
             ?.githubRepository || "",
         mode,
+        model: selectedModel, // Add the selected model
       });
       await createTaskAction({ task });
       setValue("");
@@ -121,6 +123,28 @@ export default function TaskForm() {
                   placeholder="Select branch..."
                 />
               )}
+              <Select
+                onValueChange={(value) => setSelectedModel(value)}
+                value={selectedModel}
+              >
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Model" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="claude">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                      Claude
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="codex">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      OpenAI
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {value && (
               <div className="flex items-center gap-x-2">

@@ -22,6 +22,7 @@ export interface Task {
   statusMessage?: string;
   isArchived: boolean;
   mode: "code" | "ask";
+  model?: "claude" | "codex"; // Add model selection
   hasChanges: boolean;
   lastSequence?: number;
   lastTimestamp?: number;
