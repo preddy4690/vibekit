@@ -95,19 +95,19 @@ export default function TaskClientPage({ id }: Props) {
         <div className="w-150 border-r border-border bg-card flex flex-col min-h-0">
           <ScrollArea className="flex-1 min-h-0">
             <div className="p-4 flex flex-col gap-y-3 min-h-full">
-              <div className="bg-muted rounded-xl px-4 py-2 text-right w-fit self-end">
-                <p>{task?.title}</p>
+              <div className="bg-muted rounded-xl px-4 py-3 text-right max-w-[80%] min-w-fit self-end">
+                <p className="whitespace-pre-wrap break-words">{task?.title}</p>
               </div>
               {task?.messages
                 .filter(
                   (message) =>
                     (message.role === "assistant" || message.role === "user") &&
-                    (message.type === "message" || message.type === "claude_working")
+                    (message.type === "message" || message.type === "claude_working" || 
+                     message.type === "pull_request_created" || message.type === "pull_request_failed")
                 )
-
                 .map((message, index) => {
                   // Generate a more robust key based on message content and position
-                  const messageKey = `message-${index}-${message.data?.id || message.data?.call_id || crypto.randomUUID()}-${message.type}-${message.role}`;
+                  const messageKey = `message-${index}-${message.data?.id || message.data?.call_id || `msg-${index}`}-${message.type}-${message.role}`;
 
                   return (
                     <div
@@ -150,8 +150,45 @@ export default function TaskClientPage({ id }: Props) {
                         </MarkdownErrorBoundary>
                       )}
                       {message.role === "user" && (
-                        <div className="bg-muted rounded-xl px-4 py-2 text-right self-end w-fit">
-                          <p>{(message.data?.text as string) || ''}</p>
+                        <div className="bg-muted rounded-xl px-4 py-3 text-right self-end max-w-[80%] min-w-fit">
+                          <p className="whitespace-pre-wrap break-words">{(message.data?.text as string) || ''}</p>
+                        </div>
+                      )}
+                      {message.type === "pull_request_created" && (
+                        <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="font-medium text-green-700 dark:text-green-300">Pull Request Created</span>
+                          </div>
+                          <p className="text-sm text-green-600 dark:text-green-400 mb-2">
+                            {(message.data as any)?.title || 'A new pull request has been created for your changes.'}
+                          </p>
+                          {(message.data as any)?.url && (
+                            <a 
+                              href={(message.data as any).url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-sm text-green-600 dark:text-green-400 hover:underline"
+                            >
+                              View Pull Request #{(message.data as any)?.number}
+                            </a>
+                          )}
+                          {(message.data as any)?.branch && (
+                            <p className="text-xs text-green-500 dark:text-green-500 mt-1">
+                              Branch: {(message.data as any).branch}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {message.type === "pull_request_failed" && (
+                        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                            <span className="font-medium text-red-700 dark:text-red-300">Pull Request Failed</span>
+                          </div>
+                          <p className="text-sm text-red-600 dark:text-red-400">
+                            Failed to create pull request: {(message.data as any)?.error || 'Unknown error'}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -193,7 +230,7 @@ export default function TaskClientPage({ id }: Props) {
           {/* Fade overlay at the top */}
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-muted to-transparent pointer-events-none z-10" />
           <ScrollArea ref={scrollAreaRef} className="h-full">
-            <div className="max-w-3xl mx-auto w-full py-10">
+            <div className="max-w-3xl mx-auto w-full py-10 px-6">
               {/* Details content will go here */}
               <div className="flex flex-col gap-y-10">
                 {/* Show Claude working indicator in right panel */}
@@ -216,78 +253,96 @@ export default function TaskClientPage({ id }: Props) {
                   </div>
                 )}
 
-                {task?.messages.map((message, index) => {
-                  if (message.type === "local_shell_call") {
-                    const output = getOutputForCall(
-                      message.data?.call_id as string
-                    );
-                    const shellKey = `shell-${index}-${message.data?.call_id || message.data?.id || crypto.randomUUID()}-${message.type}`;
+                {(() => {
+                  // Deduplicate shell calls using a Set
+                  const seenCallIds = new Set<string>();
+                  const uniqueMessages: any[] = [];
+                  
+                  task?.messages.forEach((message) => {
+                    if (message.type === "local_shell_call") {
+                      const callId = message.data?.call_id || message.data?.id;
+                      if (callId && seenCallIds.has(callId)) {
+                        return; // Skip duplicate
+                      }
+                      if (callId) seenCallIds.add(callId);
+                    }
+                    uniqueMessages.push(message);
+                  });
+                  
+                  return uniqueMessages;
+                })()
+                  .map((message, index) => {
+                    if (message.type === "local_shell_call") {
+                      const output = getOutputForCall(
+                        message.data?.call_id as string
+                      );
+                      const shellKey = `shell-${index}-${message.data?.call_id || message.data?.id || `msg-${index}`}-${message.type}`;
 
-                    return (
-                      <div
-                        key={shellKey}
-                        className="flex flex-col"
-                      >
-                        <div className="flex items-start gap-x-2">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <p className="font-medium font-mono text-sm -mt-1 truncate max-w-md cursor-help">
-                                  {(
-                                    message.data as {
-                                      action?: { command?: string[] };
-                                    }
-                                  )?.action?.command
-                                    ?.slice(1)
-                                    .join(" ")}
-                                </p>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="max-w-sm break-words">
-                                  {(
-                                    message.data as {
-                                      action?: { command?: string[] };
-                                    }
-                                  )?.action?.command
-                                    ?.slice(1)
-                                    .join(" ")}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                        {output && (
-                          <div className="mt-2">
-                            <div className="rounded-md bg-background border">
-                              <div className="flex items-center gap-2 bg-sidebar border-b p-4 py-2 rounded-t-lg">
-                                <Terminal className="size-4 text-muted-foreground" />
-                                <span className="font-medium text-sm">
-                                  shell
-                                </span>
-                              </div>
-                              <ScrollArea>
-                                <pre className="whitespace-pre-wrap leading-relaxed p-4 max-h-[300px] text-[13px]">
-                                  {(() => {
-                                    try {
-                                      const parsed = JSON.parse(
-                                        (output.data as { output?: string })
-                                          ?.output || "{}"
-                                      );
-                                      return parsed.output || "No output";
-                                    } catch {
-                                      return "Failed to parse output";
-                                    }
-                                  })()}
-                                </pre>
-                              </ScrollArea>
-                            </div>
+                      return (
+                        <div
+                          key={shellKey}
+                          className="flex flex-col"
+                        >
+                          <div className="flex items-start gap-x-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <p className="font-medium font-mono text-sm -mt-1 truncate max-w-md cursor-help">
+                                    {(
+                                      message.data as {
+                                        action?: { command?: string[] };
+                                      }
+                                    )?.action?.command
+                                      ?.slice(1)
+                                      .join(" ")}
+                                  </p>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-sm break-words">
+                                    {(
+                                      message.data as {
+                                        action?: { command?: string[] };
+                                      }
+                                    )?.action?.command
+                                      ?.slice(1)
+                                      .join(" ")}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
-                        )}
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
+                          {output && (
+                            <div className="mt-2">
+                              <div className="rounded-md bg-background border">
+                                <div className="flex items-center gap-2 bg-sidebar border-b p-4 py-2 rounded-t-lg">
+                                  <Terminal className="size-4 text-muted-foreground" />
+                                  <span className="font-medium text-sm">
+                                    shell
+                                  </span>
+                                </div>
+                                <ScrollArea>
+                                  <pre className="whitespace-pre-wrap leading-relaxed p-4 max-h-[300px] text-[13px]">
+                                    {(() => {
+                                      try {
+                                        const parsed = JSON.parse(
+                                          (output.data as { output?: string })
+                                            ?.output || "{}"
+                                        );
+                                        return parsed.output || "No output";
+                                      } catch {
+                                        return "Failed to parse output";
+                                      }
+                                    })()}
+                                  </pre>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
               </div>
             </div>
           </ScrollArea>

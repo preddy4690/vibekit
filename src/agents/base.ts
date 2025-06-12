@@ -394,9 +394,39 @@ export abstract class BaseAgent {
     );
 
     // Push the branch to GitHub
-    await sbx.commands.run(`cd ${repoDir} && git push origin ${branchName}`, {
+    console.log(`[CREATE_PR] Pushing branch ${branchName} to origin...`);
+    const pushResult = await sbx.commands.run(`cd ${repoDir} && git push origin ${branchName}`, {
       timeoutMs: 3600000,
     });
+
+    console.log(`[CREATE_PR] Git push result:`, {
+      exitCode: pushResult.exitCode,
+      stdout: pushResult.stdout,
+      stderr: pushResult.stderr
+    });
+
+    if (pushResult.exitCode !== 0) {
+      // If push fails, try setting the remote URL with authentication and retry
+      console.log(`[CREATE_PR] Initial push failed, trying to set remote URL with authentication...`);
+      await sbx.commands.run(
+        `cd ${repoDir} && git remote set-url origin https://x-access-token:${githubToken}@github.com/${repoUrl}.git`,
+        { timeoutMs: 60000 }
+      );
+
+      const retryPushResult = await sbx.commands.run(`cd ${repoDir} && git push origin ${branchName}`, {
+        timeoutMs: 3600000,
+      });
+
+      console.log(`[CREATE_PR] Retry push result:`, {
+        exitCode: retryPushResult.exitCode,
+        stdout: retryPushResult.stdout,
+        stderr: retryPushResult.stderr
+      });
+
+      if (retryPushResult.exitCode !== 0) {
+        throw new Error(`Failed to push branch ${branchName} to GitHub: ${retryPushResult.stderr || retryPushResult.stdout}`);
+      }
+    }
 
     // Extract commit SHA from checkout output
     const commitMatch = checkout?.stdout.match(/\[[\w-]+ ([a-f0-9]+)\]/);
@@ -404,12 +434,16 @@ export abstract class BaseAgent {
 
     // Create Pull Request using GitHub API
     const [owner, repo] = repoUrl?.split("/") || [];
+    console.log(`[CREATE_PR] Creating PR for ${owner}/${repo} from ${branchName} to ${baseBranch?.stdout.trim() || "main"}`);
+    console.log(`[CREATE_PR] PR Title: ${title}`);
+    console.log(`[CREATE_PR] PR Body length: ${body.length} characters`);
+
     const prResponse = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/pulls`,
       {
         method: "POST",
         headers: {
-          Authorization: `token ${githubToken}`,
+          Authorization: `Bearer ${githubToken}`,
           Accept: "application/vnd.github.v3+json",
           "Content-Type": "application/json",
         },
@@ -423,8 +457,21 @@ export abstract class BaseAgent {
     );
 
     if (!prResponse.ok) {
-      const errorText = await prResponse.text();
-      throw new Error(`Failed to create PR: ${prResponse.status} ${errorText}`);
+      const errorData = await prResponse.json().catch(() => ({}));
+      const errorMessage = errorData.message || await prResponse.text().catch(() => prResponse.statusText);
+      
+      switch (prResponse.status) {
+        case 401:
+          throw new Error(`GitHub authentication failed. Please check your token permissions.`);
+        case 403:
+          throw new Error(`GitHub API rate limit exceeded or insufficient permissions. ${errorMessage}`);
+        case 422:
+          throw new Error(`GitHub API validation failed: ${errorMessage}`);
+        case 404:
+          throw new Error(`Repository not found. Please check the repository name and your access permissions.`);
+        default:
+          throw new Error(`Failed to create PR (${prResponse.status}): ${errorMessage}`);
+      }
     }
 
     const prData = await prResponse.json();
@@ -457,7 +504,7 @@ export abstract class BaseAgent {
       `https://api.github.com/repos/${owner}/${repo}/labels/${labelName}`,
       {
         headers: {
-          Authorization: `token ${githubToken}`,
+          Authorization: `Bearer ${githubToken}`,
           Accept: "application/vnd.github.v3+json",
         },
       }
@@ -470,7 +517,7 @@ export abstract class BaseAgent {
         {
           method: "POST",
           headers: {
-            Authorization: `token ${githubToken}`,
+            Authorization: `Bearer ${githubToken}`,
             Accept: "application/vnd.github.v3+json",
             "Content-Type": "application/json",
           },
@@ -502,7 +549,7 @@ export abstract class BaseAgent {
       {
         method: "POST",
         headers: {
-          Authorization: `token ${githubToken}`,
+          Authorization: `Bearer ${githubToken}`,
           Accept: "application/vnd.github.v3+json",
           "Content-Type": "application/json",
         },

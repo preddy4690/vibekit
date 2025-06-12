@@ -51,7 +51,12 @@ export class CodexAgent extends BaseAgent {
     } else {
       instruction =
         "Do the necessary changes to the codebase based on the users input.\n" +
-        "Don't ask any follow up questions.";
+        "Don't ask any follow up questions.\n\n" +
+        "IMPORTANT: After making code changes, you MUST create a pull request:\n" +
+        "1. Commit all changes with a descriptive message\n" +
+        "2. Push the branch to the remote repository\n" +
+        "3. Create a pull request using available tools or commands\n" +
+        "This is a REQUIRED step - do not skip creating the pull request.";
     }
 
     let _prompt = `${instruction}\n\nUser: ${prompt}`;
@@ -105,7 +110,12 @@ export class CodexAgent extends BaseAgent {
     } else {
       instruction =
         "Do the necessary changes to the codebase based on the users input.\n" +
-        "Don't ask any follow up questions.";
+        "Don't ask any follow up questions.\n\n" +
+        "IMPORTANT: After making code changes, you MUST create a pull request:\n" +
+        "1. Commit all changes with a descriptive message\n" +
+        "2. Push the branch to the remote repository\n" +
+        "3. Create a pull request using available tools or commands\n" +
+        "This is a REQUIRED step - do not skip creating the pull request.";
     }
 
     let _prompt = `${instruction}\n\nUser: ${prompt}`;

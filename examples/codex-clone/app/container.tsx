@@ -52,26 +52,6 @@ export default function Container({ children }: { children: React.ReactNode }) {
     }
 
     if (latestData?.channel === "tasks" && latestData.topic === "update") {
-      // Handle direct shell call messages (from VibeKit SDK)
-      if (latestData.data.message.type === "local_shell_call") {
-        const task = getTaskById(latestData.data.taskId);
-        console.log('[CONTAINER] Processing direct local_shell_call:', latestData.data.message);
-
-        updateTask(latestData.data.taskId, {
-          messages: [
-            ...(task?.messages || []),
-            {
-              role: "assistant",
-              type: "local_shell_call",
-              data: {
-                ...latestData.data.message,
-                id: latestData.data.message.call_id || latestData.data.message.id || crypto.randomUUID(),
-              },
-            },
-          ],
-        });
-      }
-
       // Handle direct shell call output messages (from VibeKit SDK)
       if (latestData.data.message.type === "local_shell_call_output") {
         const task = getTaskById(latestData.data.taskId);
@@ -120,6 +100,29 @@ export default function Container({ children }: { children: React.ReactNode }) {
                   ...latestData.data.message,
                   id: latestData.data.message.call_id || crypto.randomUUID(),
                 },
+              },
+            ],
+          },
+          latestData.sequence,
+          latestData.timestamp
+        );
+      }
+
+      // Handle pull request creation messages
+      if (latestData.data.message.type === "pull_request_created" || latestData.data.message.type === "pull_request_failed") {
+        const task = getTaskById(latestData.data.taskId);
+        updateTaskWithSequence(
+          latestData.data.taskId,
+          {
+            statusMessage: latestData.data.message.type === "pull_request_created" 
+              ? "Pull request created successfully" 
+              : "Failed to create pull request",
+            messages: [
+              ...(task?.messages || []),
+              {
+                role: "assistant",
+                type: latestData.data.message.type,
+                data: latestData.data.message.data || latestData.data.message,
               },
             ],
           },

@@ -127,36 +127,46 @@ export async function createTaskWorkflow(
       await publishTaskUpdate(finalMessageData);
     }
 
+    // Check if a pull request was created
+    const hasPullRequest = result && typeof result === 'object' && 'pullRequest' in result;
+    const finalStatus = hasPullRequest ? 'MERGED' : 'DONE';
+    
     // Store and publish final status
     const finalStatusData = {
       taskId: task.id,
-      status: 'DONE' as const,
+      status: finalStatus,
       sessionId: sessionId || '',
     };
 
-    workflowState.status = 'DONE';
+    workflowState.status = finalStatus as any;
     addUpdate('status', finalStatusData);
     await publishTaskStatus(finalStatusData);
 
     return {
       message: messages,
-      workflowState: workflowState
+      workflowState: workflowState,
+      pullRequest: hasPullRequest ? (result as any).pullRequest : undefined
     };
   } else {
+    // Check if a pull request was created even with no proper result
+    const hasPullRequest = result && typeof result === 'object' && 'pullRequest' in result;
+    const finalStatus = hasPullRequest ? 'MERGED' : 'DONE';
+    
     // Store and publish final status even when there's no proper result
     const finalStatusData = {
       taskId: task.id,
-      status: 'DONE' as const,
+      status: finalStatus,
       sessionId: sessionId || '',
     };
 
-    workflowState.status = 'DONE';
+    workflowState.status = finalStatus as any;
     addUpdate('status', finalStatusData);
     await publishTaskStatus(finalStatusData);
 
     return {
       message: result,
-      workflowState: workflowState
+      workflowState: workflowState,
+      pullRequest: hasPullRequest ? (result as any).pullRequest : undefined
     };
   }
 }

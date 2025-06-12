@@ -43,7 +43,7 @@ export class GitHubAuth {
     this.redirectUri =
       process.env.NODE_ENV === "production"
         ? "https://vibekit.sh/api/auth/github/callback"
-        : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3003") + "/api/auth/github/callback";
+        : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3002") + "/api/auth/github/callback";
   }
 
   // Generate GitHub OAuth URL
@@ -95,7 +95,14 @@ export class GitHubAuth {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch user: ${response.statusText}`);
+      switch (response.status) {
+        case 401:
+          throw new Error(`GitHub authentication failed. Please check your access token.`);
+        case 403:
+          throw new Error(`GitHub API rate limit exceeded or insufficient permissions.`);
+        default:
+          throw new Error(`Failed to fetch user (${response.status}): ${response.statusText}`);
+      }
     }
 
     return response.json();
@@ -114,7 +121,14 @@ export class GitHubAuth {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch repositories: ${response.statusText}`);
+      switch (response.status) {
+        case 401:
+          throw new Error(`GitHub authentication failed. Please check your access token.`);
+        case 403:
+          throw new Error(`GitHub API rate limit exceeded or insufficient permissions.`);
+        default:
+          throw new Error(`Failed to fetch repositories (${response.status}): ${response.statusText}`);
+      }
     }
 
     return response.json();
@@ -149,7 +163,21 @@ export class GitHubAuth {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to create pull request: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.message || await response.text().catch(() => response.statusText);
+      
+      switch (response.status) {
+        case 401:
+          throw new Error(`GitHub authentication failed. Please check your token permissions.`);
+        case 403:
+          throw new Error(`GitHub API rate limit exceeded or insufficient permissions. ${errorMessage}`);
+        case 422:
+          throw new Error(`GitHub API validation failed: ${errorMessage}`);
+        case 404:
+          throw new Error(`Repository not found. Please check the repository name and your access permissions.`);
+        default:
+          throw new Error(`Failed to create PR (${response.status}): ${errorMessage}`);
+      }
     }
 
     return response.json();
