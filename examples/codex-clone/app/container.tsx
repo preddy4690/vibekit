@@ -320,19 +320,41 @@ export default function Container({ children }: { children: React.ReactNode }) {
       ) {
         const task = getTaskById(latestData.data.taskId);
 
-        updateTask(latestData.data.taskId, {
-          messages: [
-            ...(task?.messages || []),
-            {
-              role: "assistant",
-              type: "message",
-              data: {
-                ...(latestData.data.message.content as { text: string }[])[0],
-                id: crypto.randomUUID(),
+        // Check if message already has data.text format
+        if (latestData.data.message.data?.text) {
+          updateTask(latestData.data.taskId, {
+            messages: [
+              ...(task?.messages || []),
+              {
+                role: "assistant",
+                type: "message",
+                data: {
+                  text: latestData.data.message.data.text,
+                  id: crypto.randomUUID(),
+                },
               },
-            },
-          ],
-        });
+            ],
+          });
+        } else if (latestData.data.message.content) {
+          // Handle old content array format
+          const content = Array.isArray(latestData.data.message.content) 
+            ? latestData.data.message.content[0] 
+            : latestData.data.message.content;
+          
+          updateTask(latestData.data.taskId, {
+            messages: [
+              ...(task?.messages || []),
+              {
+                role: "assistant",
+                type: "message",
+                data: {
+                  text: content?.text || content || '',
+                  id: crypto.randomUUID(),
+                },
+              },
+            ],
+          });
+        }
       }
 
       // Handle system messages (like initialization)

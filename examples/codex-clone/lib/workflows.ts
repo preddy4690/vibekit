@@ -117,9 +117,9 @@ export async function createTaskWorkflow(
           type: 'message',
           role: 'assistant',
           status: 'completed',
-          content: [{
+          data: {
             text: finalMessage.content.find((c: any) => c.type === 'input_text')?.text || 'Task completed'
-          }]
+          }
         }
       };
 

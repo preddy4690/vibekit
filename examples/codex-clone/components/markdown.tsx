@@ -44,7 +44,7 @@ export const CodeComponent: React.FC<CodeComponentProps> = ({
   if (inline) {
     return (
       <code
-        className="text-sm bg-background dark:bg-zinc-800 py-0.5 px-1 rounded-md"
+        className="text-xs bg-muted border border-border py-0.5 px-1.5 rounded font-mono"
         style={{ wordBreak: "break-all" }}
         {...props}
       >
@@ -56,9 +56,9 @@ export const CodeComponent: React.FC<CodeComponentProps> = ({
   // Code block with language
   if (match) {
     return (
-      <div className="border rounded-lg bg-background my-2 overflow-hidden">
-        <div className="flex items-center justify-between bg-sidebar px-2 py-1 border-b">
-          <span className="text-xs text-muted-foreground">{match[1]}</span>
+      <div className="border rounded-lg bg-muted/30 my-6 overflow-hidden">
+        <div className="flex items-center justify-between bg-muted px-3 py-2 border-b">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{match[1]}</span>
           <Button
             variant="ghost"
             size="icon"
@@ -122,28 +122,33 @@ const components: Partial<Components> = {
   code: CodeComponent,
   pre: ({ children }) => <>{children}</>,
   ol: ({ children, ...props }) => (
-    <ol className="list-decimal list-outside ml-4" {...props}>
+    <ol className="list-decimal list-outside ml-5 mb-6 mt-3 space-y-3" {...props}>
       {children}
     </ol>
   ),
   li: ({ children, ...props }) => (
-    <li className="py-1" {...props}>
+    <li className="text-sm leading-relaxed pl-1 mb-2" {...props}>
       {children}
     </li>
   ),
   ul: ({ children, ...props }) => (
-    <ul className="list-disc list-outside ml-4" {...props}>
+    <ul className="list-disc list-outside ml-5 mb-6 mt-3 space-y-3" {...props}>
       {children}
     </ul>
   ),
   strong: ({ children, ...props }) => (
-    <span className="font-semibold" {...props}>
+    <span className="font-semibold text-foreground" {...props}>
+      {children}
+    </span>
+  ),
+  em: ({ children, ...props }) => (
+    <span className="italic text-foreground" {...props}>
       {children}
     </span>
   ),
   p: ({ children, ...props }) => (
     <p
-      className="mb-2"
+      className="mb-6 text-sm leading-relaxed text-foreground last:mb-0"
       style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
       {...props}
     >
@@ -195,7 +200,7 @@ const components: Partial<Components> = {
   },
   h1: ({ children, ...props }) => (
     <h1
-      className="text-3xl font-semibold mt-6 mb-2"
+      className="text-xl font-semibold mt-6 mb-4 text-foreground first:mt-0"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -204,7 +209,7 @@ const components: Partial<Components> = {
   ),
   h2: ({ children, ...props }) => (
     <h2
-      className="text-2xl font-semibold mt-6 mb-2"
+      className="text-lg font-semibold mt-6 mb-3 text-foreground first:mt-0"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -213,7 +218,7 @@ const components: Partial<Components> = {
   ),
   h3: ({ children, ...props }) => (
     <h3
-      className="text-xl font-semibold mt-6 mb-2"
+      className="text-base font-semibold mt-5 mb-3 text-foreground first:mt-0"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -222,7 +227,7 @@ const components: Partial<Components> = {
   ),
   h4: ({ children, ...props }) => (
     <h4
-      className="text-lg font-semibold mt-6 mb-2"
+      className="text-sm font-semibold mt-3 mb-2 text-foreground"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -231,7 +236,7 @@ const components: Partial<Components> = {
   ),
   h5: ({ children, ...props }) => (
     <h5
-      className="text-base font-semibold mt-6 mb-2"
+      className="text-sm font-medium mt-2 mb-1 text-foreground"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -240,7 +245,7 @@ const components: Partial<Components> = {
   ),
   h6: ({ children, ...props }) => (
     <h6
-      className="text-sm font-semibold mt-6 mb-2"
+      className="text-xs font-medium mt-2 mb-1 text-muted-foreground uppercase tracking-wide"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -258,7 +263,7 @@ const components: Partial<Components> = {
   ),
   blockquote: ({ children, ...props }) => (
     <blockquote
-      className="border-l-4 border-gray-300 dark:border-gray-700 pl-4 italic my-4"
+      className="border-l-3 border-muted-foreground/30 pl-4 italic my-6 text-muted-foreground bg-muted/30 py-3 rounded-r-md"
       style={{ wordBreak: "break-word" }}
       {...props}
     >
@@ -285,7 +290,7 @@ const components: Partial<Components> = {
   tr: ({ children, ...props }) => <TableRow {...props}>{children}</TableRow>,
   th: ({ children, ...props }) => <TableHead {...props}>{children}</TableHead>,
   td: ({ children, ...props }) => <TableCell {...props}>{children}</TableCell>,
-  hr: () => <Separator className="my-8 h-1" />,
+  hr: () => <Separator className="my-6" />,
 };
 
 const remarkPlugins = [remarkGfm];
@@ -334,7 +339,16 @@ const NonMemoizedMarkdown = ({ children, repoUrl, branch }: MarkdownProps) => {
   const processedContent = processCitations(children, repoUrl, branch);
 
   return (
-    <div style={{ width: "100%", maxWidth: "100%" }}>
+    <div
+      className="markdown-content max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        whiteSpace: "pre-wrap",
+        wordWrap: "break-word",
+        overflowWrap: "break-word"
+      }}
+    >
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}

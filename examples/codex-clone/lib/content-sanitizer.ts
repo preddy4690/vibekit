@@ -63,7 +63,8 @@ export function sanitizeMarkdownContent(content: string): string {
 
   // Third pass: Clean up any remaining problematic content
   sanitized = sanitized
-    .replace(/\s+/g, ' ') // Normalize whitespace
+    .replace(/[ \t]+/g, ' ') // Normalize horizontal whitespace only (preserve line breaks)
+    .replace(/\n{3,}/g, '\n\n') // Limit consecutive line breaks to maximum 2
     .trim();
 
   return sanitized;

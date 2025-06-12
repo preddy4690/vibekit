@@ -43,7 +43,7 @@ export class GitHubAuth {
     this.redirectUri =
       process.env.NODE_ENV === "production"
         ? "https://vibekit.sh/api/auth/github/callback"
-        : "http://localhost:3002/api/auth/github/callback";
+        : (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3003") + "/api/auth/github/callback";
   }
 
   // Generate GitHub OAuth URL

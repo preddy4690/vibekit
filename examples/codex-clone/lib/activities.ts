@@ -25,8 +25,8 @@ type Task = {
 
 // Helper function to send updates via HTTP POST to the SSE endpoint
 async function sendUpdate(message: any) {
-  // Use environment variable or default to port 3002 (codex-clone app port)
-  const broadcastUrl = process.env.BROADCAST_URL || 'http://localhost:3002/api/temporal/broadcast';
+  // Use environment variable or default to current port (3003)
+  const broadcastUrl = process.env.BROADCAST_URL || 'http://localhost:3003/api/temporal/broadcast';
 
   try {
     console.log(`[BROADCAST] Sending update to ${broadcastUrl}:`, JSON.stringify(message, null, 2));
@@ -254,14 +254,24 @@ export async function generateCode({
             });
           } else if (parsedMessage.type === 'message' && parsedMessage.role === 'assistant') {
             // Final AI response
+            // Extract text from content array if it exists
+            let text = '';
+            if (Array.isArray(parsedMessage.content)) {
+              const textContent = parsedMessage.content.find((c: any) => c.type === 'text' || c.type === 'input_text');
+              text = textContent?.text || '';
+            } else if (typeof parsedMessage.content === 'string') {
+              text = parsedMessage.content;
+            }
+            
             publishTaskUpdate({
               taskId: task.id,
               message: {
                 type: 'message',
                 role: 'assistant',
                 status: 'completed',
-                content: parsedMessage.content,
-                ...parsedMessage
+                data: {
+                  text: text
+                }
               },
             });
           } else if (!hasClaudeShellCommands) {
