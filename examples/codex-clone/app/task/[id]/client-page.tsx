@@ -102,8 +102,9 @@ export default function TaskClientPage({ id }: Props) {
                 .filter(
                   (message) =>
                     (message.role === "assistant" || message.role === "user") &&
-                    (message.type === "message" || message.type === "claude_working" || 
-                     message.type === "pull_request_created" || message.type === "pull_request_failed")
+                    (message.type === "message" || message.type === "claude_working" ||
+                     message.type === "pull_request_created" || message.type === "pull_request_failed" ||
+                     message.type === "text" || message.type === "reasoning")
                 )
                 .map((message, index) => {
                   // Generate a more robust key based on message content and position
@@ -190,6 +191,31 @@ export default function TaskClientPage({ id }: Props) {
                             Failed to create pull request: {(message.data as any)?.error || 'Unknown error'}
                           </p>
                         </div>
+                      )}
+                      {(message.type === "text" || message.type === "reasoning") && (
+                        <MarkdownErrorBoundary>
+                          <Markdown
+                            repoUrl={
+                              task?.repository
+                                ? `https://github.com/${task.repository}`
+                                : undefined
+                            }
+                            branch={task?.branch}
+                          >
+                            {(() => {
+                              const rawContent = (message.data?.content || message.data?.text || message.content) as string || '';
+
+                              // Debug logging for problematic content
+                              if (hasProblematicTags(rawContent)) {
+                                const problematicTags = extractProblematicTags(rawContent);
+                                console.warn('Found problematic tags in text/reasoning message:', problematicTags);
+                                console.warn('Raw content:', rawContent);
+                              }
+
+                              return sanitizeMarkdownContent(rawContent);
+                            })()}
+                          </Markdown>
+                        </MarkdownErrorBoundary>
                       )}
                     </div>
                   );

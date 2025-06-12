@@ -33,6 +33,8 @@ interface TaskAnalysis {
   estimatedSteps: number;
   requiresPlanning: boolean;
   keywords: string[];
+  isAskRequest: boolean;
+  recommendedMode: 'ask' | 'code';
 }
 
 // Intelligent prompt generation for code tasks
@@ -45,6 +47,26 @@ async function generateIntelligentCodePrompt(
   
   // Build context-aware prompt based on task analysis
   let enhancedPrompt = userPrompt;
+  
+  // FOLLOW-UP CONTEXT: Add conversation history for code tasks too
+  if (conversationHistory.length > 0) {
+    const conversationContext = conversationHistory
+      .map(msg => `${msg.role.toUpperCase()}: ${msg.content}`)
+      .join('\n\n');
+      
+    enhancedPrompt = `## Previous Conversation:
+${conversationContext}
+
+## Current Request:
+${userPrompt}
+
+## Instructions:
+This is a follow-up request. Consider the previous conversation context when implementing this change.
+
+---
+
+${userPrompt}`;
+  }
   
   // Add task-specific instructions
   enhancedPrompt += '\n\n' + getTaskSpecificInstructions(analysis);
@@ -75,7 +97,22 @@ async function generateIntelligentCodePrompt(
 function analyzeTaskIntent(prompt: string, history: any[]): TaskAnalysis {
   const lowerPrompt = prompt.toLowerCase();
   
-  // Intent keywords
+  // ASK mode detection - questions that should NOT modify code
+  const askKeywords = [
+    'list', 'show', 'what', 'how many', 'give me', 'tell me', 'explain', 'describe',
+    'find', 'search', 'look for', 'check', 'status', 'info', 'information',
+    'pull requests', 'prs', 'branches', 'commits', 'logs', 'history'
+  ];
+  
+  // Check if this is clearly an ASK request
+  const isAskRequest = askKeywords.some(keyword => lowerPrompt.includes(keyword)) ||
+                       lowerPrompt.includes('?') ||
+                       lowerPrompt.startsWith('can you give') ||
+                       lowerPrompt.startsWith('can you tell') ||
+                       lowerPrompt.startsWith('can you show') ||
+                       lowerPrompt.startsWith('can you list');
+  
+  // Intent keywords for CODE mode
   const createKeywords = ['add', 'create', 'build', 'implement', 'new', 'make'];
   const bugFixKeywords = ['fix', 'bug', 'error', 'issue', 'broken', 'not working', 'problem'];
   const refactorKeywords = ['refactor', 'improve', 'optimize', 'clean up', 'restructure'];
@@ -92,13 +129,20 @@ function analyzeTaskIntent(prompt: string, history: any[]): TaskAnalysis {
   
   // Determine task type
   let type: TaskType = 'SIMPLE_CHANGE';
-  if (createKeywords.some(k => lowerPrompt.includes(k))) type = 'CREATE_FEATURE';
-  else if (bugFixKeywords.some(k => lowerPrompt.includes(k))) type = 'BUG_FIX';
-  else if (refactorKeywords.some(k => lowerPrompt.includes(k))) type = 'REFACTOR';
-  else if (configKeywords.some(k => lowerPrompt.includes(k))) type = 'CONFIG_CHANGE';
-  else if (docKeywords.some(k => lowerPrompt.includes(k))) type = 'DOCUMENTATION';
-  else if (testKeywords.some(k => lowerPrompt.includes(k))) type = 'TESTING';
-  else if (debugKeywords.some(k => lowerPrompt.includes(k))) type = 'DEBUGGING';
+  
+  // If this is an ASK request, don't analyze for code task types
+  if (isAskRequest) {
+    console.log(`[TASK_ANALYSIS] Detected ASK request: "${prompt}"`);
+  } else {
+    // Only analyze for code task types if not an ASK request
+    if (createKeywords.some(k => lowerPrompt.includes(k))) type = 'CREATE_FEATURE';
+    else if (bugFixKeywords.some(k => lowerPrompt.includes(k))) type = 'BUG_FIX';
+    else if (refactorKeywords.some(k => lowerPrompt.includes(k))) type = 'REFACTOR';
+    else if (configKeywords.some(k => lowerPrompt.includes(k))) type = 'CONFIG_CHANGE';
+    else if (docKeywords.some(k => lowerPrompt.includes(k))) type = 'DOCUMENTATION';
+    else if (testKeywords.some(k => lowerPrompt.includes(k))) type = 'TESTING';
+    else if (debugKeywords.some(k => lowerPrompt.includes(k))) type = 'DEBUGGING';
+  }
   
   // Determine complexity
   let complexity: TaskComplexity = 'SIMPLE';
@@ -117,7 +161,9 @@ function analyzeTaskIntent(prompt: string, history: any[]): TaskAnalysis {
     complexity,
     estimatedSteps,
     requiresPlanning,
-    keywords: extractKeywords(prompt)
+    keywords: extractKeywords(prompt),
+    isAskRequest,
+    recommendedMode: isAskRequest ? 'ask' : 'code'
   };
 }
 
@@ -559,37 +605,91 @@ export async function generateCode({
     console.log(`[GENERATE_CODE] Filtered conversation messages (${conversationMessages.length}):`, conversationMessages);
     console.log(`[GENERATE_CODE] === CONTAMINATION DEBUG END ===`);
     
-    // Add task analysis logging
-    if (task.mode === 'code') {
-      const analysis = analyzeTaskIntent(prompt || task.title, conversationMessages);
-      console.log(`[GENERATE_CODE] Task Analysis:`, {
-        type: analysis.type,
-        complexity: analysis.complexity,
-        estimatedSteps: analysis.estimatedSteps,
-        requiresPlanning: analysis.requiresPlanning,
-        keywords: analysis.keywords
-      });
+    // CONTEXT FIX: Define variables needed for context handling
+    const currentTaskPrompt = prompt || task.title;
+    // For new tasks, start with empty conversation history to prevent contamination
+    // For follow-up questions, use the filtered conversation history to maintain context
+    const cleanConversationHistory = task.messages.length === 0 ? [] : conversationMessages;
+    
+    console.log(`[GENERATE_CODE] Current task prompt: "${currentTaskPrompt}"`);
+    console.log(`[GENERATE_CODE] Clean conversation history: ${cleanConversationHistory.length} messages`);
+    console.log(`[GENERATE_CODE] Follow-up context:`, cleanConversationHistory.map(m => `${m.role}: ${m.content.substring(0, 50)}...`));
+    
+    // Add task analysis logging for both ASK and CODE modes
+    const analysis = analyzeTaskIntent(currentTaskPrompt, cleanConversationHistory);
+    console.log(`[GENERATE_CODE] Task Analysis:`, {
+      type: analysis.type,
+      complexity: analysis.complexity,
+      estimatedSteps: analysis.estimatedSteps,
+      requiresPlanning: analysis.requiresPlanning,
+      keywords: analysis.keywords,
+      isAskRequest: analysis.isAskRequest,
+      recommendedMode: analysis.recommendedMode,
+      actualMode: task.mode
+    });
+
+    // MODE MISMATCH WARNING: Alert if task mode doesn't match recommended mode
+    if (analysis.recommendedMode !== task.mode) {
+      console.warn(`[GENERATE_CODE] MODE MISMATCH: Task is in ${task.mode} mode but should be ${analysis.recommendedMode} mode for prompt: "${currentTaskPrompt}"`);
     }
 
-    // CONTAMINATION FIX: Ensure we only use the current prompt, never append to potentially contaminated history
-    const currentTaskPrompt = prompt || task.title;
-    console.log(`[GENERATE_CODE] Using current task prompt only: "${currentTaskPrompt}"`);
-    
-    // For new tasks, start with empty conversation history to prevent contamination
-    const cleanConversationHistory = task.messages.length === 0 ? [] : conversationMessages;
-    console.log(`[GENERATE_CODE] Using clean conversation history with ${cleanConversationHistory.length} messages`);
-
     // Enhanced prompt with intelligent task analysis and guidelines (using only current task data)
-    const enhancedPrompt = task.mode === 'code' 
-      ? await generateIntelligentCodePrompt(currentTaskPrompt, task, cleanConversationHistory)
-      : currentTaskPrompt;
+    let enhancedPrompt;
+    if (task.mode === 'ask' || analysis.isAskRequest) {
+      // ASK mode: Research and answer questions without making changes
+      let contextPrompt = currentTaskPrompt;
+      
+      // FOLLOW-UP CONTEXT: If this is a follow-up question, provide conversation context
+      if (cleanConversationHistory.length > 0) {
+        console.log(`[GENERATE_CODE] Follow-up question detected with ${cleanConversationHistory.length} previous messages`);
+        
+        // Build conversation context for follow-ups
+        const conversationContext = cleanConversationHistory
+          .map(msg => `${msg.role.toUpperCase()}: ${msg.content}`)
+          .join('\n\n');
+          
+        contextPrompt = `## Conversation Context:
+${conversationContext}
+
+## Current Follow-up Question:
+${currentTaskPrompt}
+
+## Instructions:
+This is a follow-up question to the conversation above. Use the previous context to provide a relevant answer to the current question.`;
+      }
+
+      enhancedPrompt = `${contextPrompt}
+
+## Research Guidelines:
+- Use available tools to research the repository and gather information
+- Use git commands, file reading, and API calls as needed for research
+- Do NOT make any changes to files or code
+- For follow-up questions, consider the previous conversation context
+
+## CRITICAL: After completing your research, you MUST provide a clear final answer
+After gathering information, always conclude with a comprehensive response that directly answers the user's question. Do not stop after just running commands - synthesize your findings into a clear, informative answer.
+
+## IMPORTANT: This is an ASK task - NO CODE MODIFICATIONS allowed`;
+    } else {
+      // CODE mode: Use the intelligent prompt generation
+      enhancedPrompt = await generateIntelligentCodePrompt(currentTaskPrompt, task, cleanConversationHistory);
+    }
       
     console.log(`[GENERATE_CODE] Generated enhanced prompt length: ${enhancedPrompt.length} characters`);
+
+    // CONTEXT LOGGING: Log what context we're sending to VibeKit
+    console.log(`[GENERATE_CODE] Sending to VibeKit:`, {
+      promptLength: enhancedPrompt.length,
+      mode: task.mode,
+      hasHistory: cleanConversationHistory.length > 0,
+      historyLength: cleanConversationHistory.length,
+      historyPreview: cleanConversationHistory.map(h => `${h.role}: ${h.content.substring(0, 30)}...`)
+    });
 
     const response = await vibekit.generateCode({
       prompt: enhancedPrompt,
       mode: task.mode,
-      // CONTAMINATION FIX: Use clean conversation history to prevent cross-task contamination
+      // CONTAMINATION FIX + CONTEXT FIX: Use clean conversation history to prevent cross-task contamination while preserving follow-up context
       history: cleanConversationHistory.length > 0 ? cleanConversationHistory : undefined,
       callbacks: {
         onUpdate(message) {
@@ -751,36 +851,131 @@ export async function generateCode({
                   },
                 });
               } else if (parsedMessage.type === 'message' && parsedMessage.role === 'assistant') {
-                // Final AI response
-                // Extract text from content array if it exists
+                // Final AI response - Enhanced text extraction
                 let text = '';
+                
+                // Try multiple extraction methods
                 if (Array.isArray(parsedMessage.content)) {
                   const textContent = parsedMessage.content.find((c: any) => c.type === 'text' || c.type === 'input_text');
-                  text = textContent?.text || '';
+                  text = textContent?.text || textContent?.content || '';
                 } else if (typeof parsedMessage.content === 'string') {
                   text = parsedMessage.content;
+                } else if (parsedMessage.content && typeof parsedMessage.content === 'object') {
+                  // Handle object content
+                  text = parsedMessage.content.text || parsedMessage.content.content || '';
+                }
+                
+                // Fallback to other possible fields
+                if (!text) {
+                  text = parsedMessage.text || parsedMessage.message || parsedMessage.summary || '';
+                }
+                
+                // Final fallback - try to extract text from JSON structure if no text found
+                if (!text && line && line.length > 10) {
+                  console.log(`[GENERATE_CODE] No text found in structured message, attempting JSON extraction from: ${line.substring(0, 100)}...`);
+                  
+                  // Don't use the raw line if it's JSON - that's what's causing the display issue
+                  try {
+                    const lineJson = JSON.parse(line);
+                    if (lineJson.content && Array.isArray(lineJson.content)) {
+                      const textContent = lineJson.content.find((c: any) => c.type === 'input_text' || c.type === 'text');
+                      text = textContent?.text || '';
+                    } else if (lineJson.content && typeof lineJson.content === 'string') {
+                      text = lineJson.content;
+                    } else if (lineJson.text) {
+                      text = lineJson.text;
+                    }
+                  } catch (e) {
+                    // If it's not JSON, use the raw line only if it doesn't look like JSON
+                    if (!line.trim().startsWith('{') && !line.trim().startsWith('[')) {
+                      text = line;
+                    }
+                  }
                 }
 
-                publishTaskUpdate({
-                  taskId: task.id,
-                  message: {
-                    type: 'message',
-                    role: 'assistant',
-                    status: 'completed',
-                    data: {
-                      text: text
-                    }
-                  },
+                console.log(`[GENERATE_CODE] Final AI response extraction:`, {
+                  hasContent: !!parsedMessage.content,
+                  contentType: typeof parsedMessage.content,
+                  extractedTextLength: text.length,
+                  extractedTextPreview: text.substring(0, 200) + '...'
                 });
-              } else if (!hasClaudeShellCommands) {
-                // Only send text message if we didn't find Claude shell commands
-                publishTaskUpdate({
-                  taskId: task.id,
-                  message: {
-                    type: 'text',
-                    content: line,
-                  },
-                });
+
+                // Only publish if we have actual content
+                if (text && text.trim().length > 0) {
+                  console.log(`[GENERATE_CODE] Publishing final AI response: ${text.substring(0, 200)}...`);
+                  publishTaskUpdate({
+                    taskId: task.id,
+                    message: {
+                      type: 'message',
+                      role: 'assistant',
+                      status: 'completed',
+                      data: {
+                        text: text
+                      }
+                    },
+                  });
+                } else {
+                  console.warn(`[GENERATE_CODE] Skipping empty final AI response. Raw message:`, parsedMessage);
+                }
+              } else if (parsedMessage.type === 'reasoning' || parsedMessage.type === 'text') {
+                // Handle reasoning or text messages that might contain answers
+                const content = parsedMessage.content || parsedMessage.summary || line;
+                if (content && content.length > 10) { // Only send substantial content
+                  console.log(`[GENERATE_CODE] Publishing text/reasoning content: ${content.substring(0, 100)}...`);
+                  publishTaskUpdate({
+                    taskId: task.id,
+                    message: {
+                      type: 'message',
+                      role: 'assistant',
+                      status: 'completed',
+                      data: {
+                        text: content
+                      }
+                    },
+                  });
+                }
+              } else if (!hasClaudeShellCommands && line.length > 20) {
+                // Only send substantial text messages if we didn't find Claude shell commands
+                console.log(`[GENERATE_CODE] Processing fallback text message: ${line.substring(0, 100)}...`);
+                
+                // Skip JSON structures - they should not be displayed as text
+                if (line.trim().startsWith('{') || line.trim().startsWith('[')) {
+                  console.log(`[GENERATE_CODE] Skipping JSON structure in fallback: ${line.substring(0, 100)}...`);
+                  return;
+                }
+                
+                // Check if this looks like a final answer that should be treated as assistant message
+                const looksLikeFinalAnswer = line.toLowerCase().includes('based on') || 
+                                           line.toLowerCase().includes('final answer') ||
+                                           line.toLowerCase().includes('in summary') ||
+                                           line.toLowerCase().includes('to answer your question') ||
+                                           line.length > 100; // Substantial content likely to be an answer
+                
+                if (looksLikeFinalAnswer) {
+                  // Treat as assistant message for better UI display
+                  console.log(`[GENERATE_CODE] Publishing final answer as assistant message: ${line.substring(0, 100)}...`);
+                  publishTaskUpdate({
+                    taskId: task.id,
+                    message: {
+                      type: 'message',
+                      role: 'assistant',
+                      status: 'completed',
+                      data: {
+                        text: line
+                      }
+                    },
+                  });
+                } else {
+                  // Regular text message
+                  console.log(`[GENERATE_CODE] Publishing regular text message: ${line.substring(0, 100)}...`);
+                  publishTaskUpdate({
+                    taskId: task.id,
+                    message: {
+                      type: 'text',
+                      content: line,
+                    },
+                  });
+                }
               }
 
             } catch (lineError) {
@@ -908,9 +1103,10 @@ export async function generateCode({
     console.log(`[GENERATE_CODE] Response type: ${typeof response}, Response truthy: ${!!response}`);
     console.log(`[GENERATE_CODE] Task mode: ${task.mode}, Repository: ${task.repository}`);
 
-    // Enhanced PR creation logic with better debugging
-    if (task.mode === 'code') {
+    // Enhanced PR creation logic with better debugging  
+    if (task.mode === 'code' && !analysis.isAskRequest) {
       console.log(`[GENERATE_CODE] Code task detected - checking PR creation requirements`);
+      console.log(`[GENERATE_CODE] Analysis indicates this should be a ${analysis.recommendedMode} task`);
 
       // Check all requirements for PR creation
       const canCreatePR = {
@@ -1015,7 +1211,14 @@ export async function generateCode({
         }
       }
     } else {
-      console.log(`[GENERATE_CODE] Not a code task (mode: ${task.mode}) - skipping PR creation`);
+      console.log(`[GENERATE_CODE] Not a code task (mode: ${task.mode}) or is ASK request - skipping PR creation`);
+      
+      // For ASK tasks, ensure we provide a final response if none was detected
+      if (task.mode === 'ask' || analysis.isAskRequest) {
+        console.log(`[GENERATE_CODE] ASK task completed - ensuring final response was provided`);
+        // Note: The streaming callbacks should have already sent the response
+        // If not, we could add a fallback here
+      }
     }
     
     return response;
